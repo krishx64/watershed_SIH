@@ -183,16 +183,26 @@ with tab_map:
     bounds = rasterio.transform.array_bounds(height, width, profile["transform"])
     minx, miny, maxx, maxy = transform_bounds(profile["crs"], "EPSG:4326", *bounds)
 
+    # Plain OpenStreetMap tiles, not CartoDB -- CartoDB's free tile service caps out at a
+    # certain zoom level and then prompts for an API key mid-use, which is a bad thing to
+    # hit live in a demo. OSM has no such cap.
     fmap = folium.Map(
         location=[(miny + maxy) / 2, (minx + maxx) / 2], zoom_start=14,
-        tiles="CartoDB positron", attr="CartoDB",
+        tiles="OpenStreetMap",
     )
-    folium.TileLayer("OpenStreetMap", name="OpenStreetMap (labels)").add_to(fmap)
     folium.raster_layers.ImageOverlay(
         image=color_img, bounds=[[miny, minx], [maxy, maxx]], opacity=0.7, name="LULC (Model 1)",
     ).add_to(fmap)
     folium.LayerControl().add_to(fmap)
-    st_folium(fmap, width=None, height=550, use_container_width=True)
+    # returned_objects=[] -- without this, st_folium reports back bounds/zoom/center on
+    # every render, which are never bit-for-bit identical run to run, so Streamlit treats
+    # it as a changed widget value and reruns the script mid-interaction. That rerun is
+    # what dims ("fades") the map while you're hovering/panning it. A stable key (tied to
+    # the active AOI) keeps the same component instance across reruns instead of remounting.
+    st_folium(
+        fmap, width=None, height=550, use_container_width=True,
+        returned_objects=[], key=f"lulc_map_{aoi['key']}",
+    )
 
 with tab_field:
     render_field_verification_tab(model1, device)

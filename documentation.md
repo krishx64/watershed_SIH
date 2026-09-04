@@ -372,6 +372,13 @@ available, not worth further heuristic tuning in the meantime.
      `.tmp` → read back → data matches) and by re-running the actual
      `build_6channel_stack`/`rasterize_labels` functions against real
      Kadwanchi data after the change.
+  6. The app's Map tab used `tiles='CartoDB positron'` for a basemap that
+     matched the light/official theme. CartoDB's free tile service caps
+     out at a certain zoom level and then prompts to create an API key
+     mid-use — a bad thing to hit live in front of a judge. Fixed by
+     switching to plain `tiles='OpenStreetMap'`, which has no such cap
+     (the Colab notebook's own map cells already used OpenStreetMap and
+     were never affected).
 
 - **Unified location picker** (`project/app/aoi_picker.py`) — v2 of the
   location feature, after user feedback that a separate "Explore" tab

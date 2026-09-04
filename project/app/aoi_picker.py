@@ -70,29 +70,51 @@ def bbox_around(lat: float, lon: float, half_km: float = HALF_KM):
     return (lon - dlon, lat - dlat, lon + dlon, lat + dlat)
 
 
-def run_pipeline(bbox, label: str, model, device):
-    """Fetch T1+T2, build stacks, run Model 1 + Tier-1 change detection. Returns a result dict."""
+def run_pipeline(bbox, label: str, model, device, on_step=None):
+    """Fetch T1+T2, build stacks, run Model 1 + Tier-1 change detection. Returns a result dict.
+
+    on_step(msg), if given, is called before each named stage so a caller can
+    surface live progress -- this pipeline takes 20-60s (two live satellite
+    fetches + two model passes), long enough that a single static spinner
+    leaves the user guessing whether it's stuck.
+    """
+    def step(msg):
+        if on_step:
+            on_step(msg)
+
     results = {}
     for date_tag in ("T1", "T2"):
+        step(f"Searching Sentinel-2 catalog for {date_tag} imagery...")
         item = search_scene(bbox, date_tag)
         raw_path = LIVE_DIR / f"{label}_{date_tag}_rgbnir.tif"
+        step(f"Downloading & clipping {date_tag} scene ({item.datetime.date()})...")
         clip_scene_to_stack(item, bbox, raw_path)
         stack_path = LIVE_DIR / f"{label}_{date_tag}_stack6.tif"
+        step(f"Computing NDVI / NDWI for {date_tag}...")
         build_6channel_stack(raw_path, stack_path)
+        step(f"Running land-cover model on {date_tag}...")
         class_map, img, profile = predict_class_map(model, stack_path, device)
         results[date_tag] = {"class_map": class_map, "img": img, "profile": profile, "date": item.datetime.date()}
 
+    step("Comparing T1 vs T2 for changes...")
     change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"])
+    step("Computing health score & NDVI trend...")
     health = compute_health_score(results["T2"]["class_map"])
     trend = ndvi_trend(results["T1"]["img"][4], results["T2"]["img"][4])
+    step("Generating alerts & recommendations...")
     alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
     return results, change_map, health, trend, alerts
 
 
 def _set_active_aoi(key, display_name, lat, lon, trained, model, device):
     bbox = bbox_around(lat, lon)
-    with st.spinner(f"Fetching satellite imagery for {display_name} and running the model..."):
-        results, change_map, health, trend, alerts = run_pipeline(bbox, key, model, device)
+    with st.status(f"Analyzing {display_name}...", expanded=True) as status:
+        def on_step(msg):
+            status.update(label=msg)
+            st.write(f":gray[{msg}]")
+
+        results, change_map, health, trend, alerts = run_pipeline(bbox, key, model, device, on_step=on_step)
+        status.update(label=f"Done — {display_name} ready", state="complete", expanded=False)
     st.session_state["active_aoi"] = {
         "key": key, "display_name": display_name, "lat": lat, "lon": lon, "trained": trained,
         "class_t1": results["T1"]["class_map"], "class_t2": results["T2"]["class_map"],

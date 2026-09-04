@@ -5,3 +5,10 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F6F7F9"
 textColor = "#14213D"
 font = "sans serif"
+
+[client]
+# Hides the "..." menu (which is where viewers could switch to dark mode,
+# print, record screen, etc). With no menu_items set via st.set_page_config,
+# "minimal" leaves nothing in that menu, so it disappears entirely -- the
+# app can only ever render in the light theme set above.
+toolbarMode = "minimal"

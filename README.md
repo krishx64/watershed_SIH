@@ -82,12 +82,16 @@ A Streamlit app (`project/app/`) wraps the trained model: pick one of the three 
 ```bash
 cd project
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r <see below>
+# torch/torchvision first, as an EXPLICITLY PINNED matched pair, from PyTorch's own
+# CUDA index -- installing them any other way (unpinned, separately, or letting a later
+# pip install pull one in as a dependency) has bitten this project twice: a CPU-only
+# build with no error, and a torch/torchvision version mismatch that fails at import
+# time. See requirements.txt's header comment for both incidents.
+.venv/Scripts/python.exe -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
+.venv/Scripts/python.exe -m pip install -r requirements.txt
 # bring models/model1_lulc_unet.pt down from your Colab Drive output
 .venv/Scripts/python.exe -m streamlit run app/streamlit_app.py
 ```
-
-(No `requirements.txt` is committed yet — see the imports at the top of `project/src/*.py` and `project/app/*.py` for the current dependency set: torch, segmentation-models-pytorch, rasterio, geopandas, pystac-client, streamlit, streamlit-folium, folium, requests.)
 
 ## Data sources
 

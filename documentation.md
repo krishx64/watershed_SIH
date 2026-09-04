@@ -122,6 +122,25 @@ needs the user's manual registration.
   tested against real downloaded data before being ported into the
   notebook generator. Model 2 and the demo/inference stages still use only
   the primary AOI (`AOI_NAME`), unaffected by the pool.
+- **v3.1 — added Jayakwadi Dam / Godavari river** (Paithan, Aurangabad
+  dist., Maharashtra, 19.486°N, 75.370°E) as a 4th (3rd auxiliary) training
+  site. Trigger: a live "unseen location" app query (Jamshedpur — a real
+  river through a dense industrial city) visibly showed the model failing
+  to trace the actual river, confusing it with built-up/vegetation —
+  expected, since none of the 3 existing sites include a real river or
+  large water body beyond Kadwanchi's own small reservoir. Deliberately
+  scoped to *water infrastructure*, not "cities" generally — rivers are
+  core watershed infrastructure and in scope for this PS; general
+  city-generalization is not (see the "should we train on more
+  areas/cities" discussion — more data isn't free, and this project already
+  has a concrete counterexample of more data hurting results, the NDVI
+  refinement in 6a). Verified before adding: 49.04% ground-truth water
+  coverage (one of Maharashtra's largest reservoirs, 2.909 km³ capacity) —
+  far exceeding any other site's water presence. Verified again after
+  adding, against real downloaded data: 48.9% water in the actual tiled
+  labels (398,139 of 814,494 pixels), matching the ground-truth check
+  almost exactly, plus 648 real training tiles generated successfully.
+  Not yet retrained/re-evaluated — that's the next Colab run.
 
 AOI is set in `project/src/config.py` (`AOI_NAME`, `AOI_CENTER_LAT/LON`,
 `AOI_BBOX`, `WORLDCOVER_TILE`) and mirrored in the Colab notebook's Config
@@ -135,7 +154,71 @@ cell (`project/notebooks/build_notebook.py`).
    downloads the matching ESA WorldCover tile, clipped to AOI.
 2. **Preprocessing** (`preprocessing.py`) — computes NDVI/NDWI, builds the
    6-channel stack; reprojects WorldCover onto the imagery's exact grid;
-   remaps ~11 WorldCover classes to the 7-class scheme.
+   remaps ~11 WorldCover classes to the 7-class scheme. (An NDVI-based
+   refinement pass was tried and fully reverted here — see section 6a for
+   why; plain WorldCover remapping is the current, best-verified approach.)
+### 6a. The Bhuvan API detour that fixed the fallow/barren gap
+
+While chasing real Bhuvan LULC data (section 4's planned upgrade), the
+official Bhuvan API turned out to offer something more immediately useful
+than a shapefile: an **AOI-wise LULC statistics endpoint**
+(`bhuvan-app1.nrsc.gov.in/api/lulc/curl_aoi.php`, takes a WKT polygon + a
+token scoped to that specific API "theme" — a different, more restrictive
+WMS host, `bhuvan-vec2.nrsc.gov.in`, was found dead/unreachable and wasn't
+needed anyway). Querying it for the exact Kadwanchi box returned real,
+official class-area statistics (using the numeric `l01`–`l24` code legend
+from NRSC's classification manual, `lulc1112.pdf`):
+
+| Class | Official Bhuvan | Our WorldCover-derived labels (same box) |
+|---|---|---|
+| Water | 3.6% | 2.79-4.5% (roughly consistent) |
+| Agriculture (cropland) | 41.6% | 63.6% (WorldCover conflates fallow into this) |
+| **Fallow** | **35.0%** | **~4% or less** |
+| **Barren/wasteland** | **19.7%** | **under 1%** |
+
+This is not a marginal discrepancy — WorldCover's global classifier has
+essentially no way to distinguish actively-growing cropland from fallow
+fields, or sparse shrubland from bare rocky ground, at Kadwanchi. That
+directly explains why fallow and barren were the model's two persistently
+weak classes across every earlier training run. Since the API only returns
+aggregate area statistics (no per-pixel/per-polygon geometry — no
+GeoJSON/vector output was found, confirmed by checking the rest of the API
+docs), it can't directly replace WorldCover as a source of training masks.
+**Tried, then fully reverted — a negative result worth recording plainly, not
+burying.** NDVI (already computed for every pixel) is a reasonable-looking
+proxy for the vigor distinction Bhuvan's manual interpretation makes, so an
+NDVI-threshold refinement was built and grid-searched against these exact
+official numbers (landing within 0.2pp of the real barren figure and 2.2pp
+of the real fallow figure for Kadwanchi's aggregate proportions). Two real
+retrains later, it never beat the unrefined baseline:
+
+| Variant | Mean IoU | Barren IoU | Fallow IoU |
+|---|---|---|---|
+| Baseline — plain WorldCover, no refinement | **65.9%** | 0.610 | 0.681 |
+| Refinement applied to all 3 training sites | 61.8% | 0.487 | 0.608 |
+| Refinement scoped to Kadwanchi (calibration site) only | 63.0% | 0.503 | 0.610 |
+
+Scoping to the calibration site did fix the *collateral* damage — water and
+dense vegetation (untouched by the refinement either way) fully recovered
+to baseline once Tamhini Ghat/Donimalai stopped having a Kadwanchi-tuned
+threshold applied to their ecologically different terrain, confirming that
+part of the diagnosis. But barren and fallow themselves never recovered to
+baseline, even scoped correctly and even well-calibrated in aggregate. The
+conclusion: a per-pixel NDVI threshold has no spatial coherence — it can
+match Bhuvan's real *aggregate* percentages for a whole box while still
+drawing much noisier, salt-and-pepper boundaries than Bhuvan's real,
+human-interpreted field/parcel edges. Getting the aggregate proportion
+right didn't translate into learnable, clean per-pixel class boundaries.
+
+**Final call: reverted entirely.** `preprocessing.py` and the notebook are
+back to plain WorldCover remapping, no NDVI refinement — the 65.9%
+mean-IoU baseline is still the best verified result. Confirmed locally that
+the reverted code reproduces the exact original label distribution before
+calling this done. The real fix for barren/fallow remains what it always
+was: a real Bhuvan shapefile (actual polygon geometry with real field
+boundaries), not a heuristic proxy — worth revisiting once that's
+available, not worth further heuristic tuning in the meantime.
+
 3. **Tiling** (`tiling.py`) — cuts into 128×128 patches (32px overlap),
    drops mostly-nodata patches, applies 8x dihedral augmentation
    (flips/rotations), writes a train/val manifest.
@@ -224,6 +307,71 @@ cell (`project/notebooks/build_notebook.py`).
      that the picker fetches imagery live instead of requiring upload, but
      worth remembering the pattern: check/save all of a batch of inputs in
      one pass, then rerun once at the end — never rerun mid-batch.
+  3. The health-score gauge (a hand-built SVG rendered via `st.html()`)
+     silently failed to render — twice, through two separate theme
+     rewrites, despite a targeted div-wrapper fix the first time and
+     despite testing correctly as a string in isolation both times. Both
+     fixes were verified by asserting on the *returned string*, never by
+     looking at an actual rendered page — exactly the blind spot the first
+     CSS bug (above) should have already taught. Root-caused as a real
+     defect in the `st.html()` + raw-SVG-in-a-narrow-column pathway
+     specifically (unclear exactly why, and not worth more time
+     debugging), while the matplotlib-based maps elsewhere in this same
+     app rendered correctly every time. Fixed by rebuilding the gauge as a
+     matplotlib donut chart (`design.render_gauge_fig`, via `st.pyplot()`)
+     instead of continuing to debug the SVG path — and this time actually
+     verified by rendering it to a PNG and looking at it (all three color
+     bands), not just asserting on a string.
+  4. The local app's header started showing "DEVICE: CPU" despite this
+     machine having a real GPU (RTX 2050) and torch having originally been
+     installed with CUDA support (`2.6.0+cu124`). Root cause: a later `pip
+     install` for some other package (unclear exactly which) silently
+     pulled a newer torch as a transitive dependency from the default PyPI
+     index, which only has CPU-only wheels for Windows -- no error, no
+     warning, inference just quietly got much slower on every subsequent
+     run. First fix attempt (`pip install torch --index-url .../cu124
+     --force-reinstall --no-deps`, reinstalling only `torch`, not
+     `torchvision`) made `torch.cuda.is_available()` True again but broke
+     the app a second way: `import segmentation_models_pytorch` now failed
+     with `RuntimeError: operator torchvision::nms does not exist` —
+     torchvision's compiled extensions are version-locked to a specific
+     torch build, and the leftover `torchvision 0.29.0` (itself a stray
+     from the original bad transitive install) didn't match the freshly
+     reinstalled `torch 2.6.0`. Reinstalling both together, *unpinned*
+     (`pip install torch torchvision --index-url .../cu124`), didn't fix it
+     either — torchvision stayed at 0.29.0, which turned out to not be
+     torch 2.6.0's actual matching release (that's `torchvision==0.21.0`).
+     Real fix: reinstall **both, explicitly version-pinned as a matched
+     pair** (`torch==2.6.0 torchvision==0.21.0`) — confirmed via
+     `torch.cuda.is_available()` (True) and a clean
+     `import segmentation_models_pytorch` (no traceback) before restarting
+     the app and confirming no import error in its own log. `requirements.txt`
+     now deliberately excludes torch/torchvision from the regular
+     dependency list, with a header comment giving the exact pinned install
+     command and explaining both failure modes, so a plain
+     `pip install -r requirements.txt` can never repeat either one. If the
+     app's header ever says "DEVICE: CPU" again on a GPU machine, or
+     `torchvision::nms` reappears at import time, this is almost certainly
+     why — re-run the pinned install line, don't install either package
+     unpinned or separately.
+  5. `rasterio.errors.RasterioIOError: Read failed` when reading a
+     just-fetched satellite raster — the file *opened* fine (metadata
+     readable) but failed on the actual pixel read, the signature of a
+     truncated write. Root cause: several abrupt session restarts during
+     the torch debugging above interrupted a write mid-flight, leaving a
+     corrupt file sitting at the exact path the pipeline trusted as
+     complete on the next run — confirmed directly (`rasterio.open()`
+     succeeded, `.read()` failed) before fixing anything. Fixed two ways:
+     deleted the one confirmed-corrupt file, and — the real fix — added
+     `config.atomic_raster_write()` (write to a `.tmp` path, then rename
+     into place) and switched every raster-writing call site in both
+     `src/*.py` and the notebook generator to use it, so an interruption
+     can never again leave a truncated file at a trusted path; either the
+     old good file remains, or nothing does, never a broken in-between.
+     Verified with a real round-trip test (write → confirm no leftover
+     `.tmp` → read back → data matches) and by re-running the actual
+     `build_6channel_stack`/`rasterize_labels` functions against real
+     Kadwanchi data after the change.
 
 - **Unified location picker** (`project/app/aoi_picker.py`) — v2 of the
   location feature, after user feedback that a separate "Explore" tab
@@ -256,6 +404,20 @@ cell (`project/notebooks/build_notebook.py`).
   (18.913°N, 74.410°E — found organically via the geocoder, not hand-picked,
   and itself another well-known watershed site).
 
+  **v2.1**: no longer auto-fetches Kadwanchi on first load. Per user
+  request, first-time visitors instead see the header in a "Not selected
+  yet" state (no AOI/coordinates chips, no trained-site badge — model/device
+  info still shows, since that's tied to the loaded checkpoint, not to any
+  location) plus a plain-language prompt panel ("Pick a location to begin")
+  below the picker, and the tabs don't render at all until a location is
+  actually chosen. Faster first load (no live fetch before the user's done
+  anything) and a clearer first impression than silently picking a site for
+  them. `design.render_header()` now accepts `aoi_name=None` for this state;
+  `aoi_picker.render_picker()`'s preset-button disabling logic was updated
+  to handle `active_aoi` being `None` (it previously assumed a dict, which
+  would have crashed on first load under the new flow) — verified via a
+  direct unit test of both header states before wiring it in.
+
 ## 8. Known bugs hit and fixed (Colab library-version issues)
 
 All were library-API mismatches between what the code assumed and what the
@@ -272,6 +434,18 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
 4. `UnetDecoder.forward()` in this version takes the feature list as a
    single positional argument, not unpacked (`*features`) → changed
    `self.decoder(*diff_feats)` to `self.decoder(diff_feats)`.
+5. Not a library bug, an environment one: `TILES_DIR` (and `manifest.csv`)
+   were under the Drive-mounted `BASE_DIR`, so tiling wrote hundreds-to-
+   thousands of small compressed `.npz` files (base patches × 8
+   augmentations) through Google Drive's sync layer — reported by the user
+   as tiling "taking a lot of time," which local testing on this machine's
+   SSD hadn't surfaced (same code, much faster local disk). Fixed by moving
+   `TILES_DIR` to local Colab disk (`/content/tiles`, not under Drive) —
+   tiles are cheaply regenerable from the persisted `stack6`/`mask` rasters
+   anyway, so there's no reason to pay Drive's per-file overhead or use
+   Drive space for them. `manifest.csv` moved alongside them, since a
+   Drive-persisted manifest could otherwise go stale after a session reset
+   wiped the local tiles it refers to.
 
 ## 9. Known limitations (current state, be honest about these)
 
@@ -286,12 +460,25 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
   were likely inflated by classifier noise (agriculture ↔ sparse-vegetation
   confusion) — not yet re-validated against the current, much stronger
   Model 1. Re-run the Tier-1/health-score numbers before quoting them.
-- **No real Bhuvan labels yet** — training on the free ESA WorldCover
-  backup, not the India-specific primary source the original plan calls
-  for.
-- **No geo-coded photo validation** — the PS's literal title is about
-  interpreting geo-coded images, and this is not yet built at all. Needs
-  real geo-tagged field photos (even ~10-20) to close.
+- **Bhuvan labels: request submitted, not yet in hand** — training still
+  runs on the free ESA WorldCover backup. A real LULC-50K shapefile
+  (2015-16 edition, bounding-box request for the exact Kadwanchi AOI) was
+  submitted through the portal's GetData request form and is pending
+  manual review/approval.
+- **Geo-coded photo validation — built, not yet used with real photos.**
+  `project/app/geo_photo.py` (new "Field Verification" tab): upload a
+  geo-tagged photo, GPS is read automatically from its EXIF metadata (or
+  entered manually if absent), Model 1 runs live on fresh satellite
+  imagery for that exact point, and a human confirms or flags a mismatch
+  — each check logged to `data/field_validation_log.csv`, building a real
+  validation record over time (model_plan.md 2.8). Deliberately not a
+  second ML model guessing at the photo — matches the project's
+  explainable/human-auditable design elsewhere (the rule-based
+  recommendation engine). Verified before considering it done: EXIF GPS
+  extraction round-tripped exactly against a synthetic photo with known
+  coordinates (including the no-GPS fallback path), and the full
+  fetch→predict→log pipeline ran successfully against real satellite data.
+  What's still missing is real photos to actually use it with.
 - **Not deployed** — Streamlit app is local-only; no public URL yet.
 
 ## 10. Roadmap / open decisions

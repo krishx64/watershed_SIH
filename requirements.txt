@@ -1,0 +1,43 @@
+# Streamlit Community Cloud deploy manifest.
+#
+# Community Cloud just runs `pip install -r requirements.txt` (no separate
+# pre-install step like the Dockerfile has), so unlike the main
+# requirements.txt, torch/torchvision ARE listed here -- pinned to the same
+# 2.6.0 / 0.21.0 pair already proven to work together (see requirements.txt's
+# header for why an unpinned pair breaks segmentation-models-pytorch at
+# import time), just the CPU wheel index instead of cu124.
+#
+# Measured locally with this exact CPU build: ~800MB peak RSS running the
+# real pipeline end-to-end (import + model load + two full-AOI forward
+# passes) against Community Cloud's ~1GB free-tier cap -- tight but workable
+# for a low-concurrency demo. If it OOMs in practice, the fallback is
+# Google Cloud Run with the project's Dockerfile (verified working, far more
+# headroom) -- see documentation.md "Deployment".
+#
+# To use: on the `deploy` branch only, `cp requirements-streamlit-cloud.txt
+# requirements.txt` before committing -- do not merge that swap into main.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0
+torchvision==0.21.0
+
+numpy==2.5.2
+pandas==3.0.5
+matplotlib==3.11.1
+scipy==1.18.1
+scikit-image==0.26.0
+pillow==12.3.0
+
+rasterio==1.5.1
+geopandas==1.1.4
+shapely==2.1.2
+pyproj==3.7.2
+pystac-client==0.9.0
+boto3==1.43.86
+
+segmentation_models_pytorch==0.5.0
+
+streamlit==1.63.0
+streamlit-folium==0.27.4
+folium==0.20.0
+requests==2.34.2

@@ -2,24 +2,40 @@
 #
 # Community Cloud just runs `pip install -r requirements.txt` (no separate
 # pre-install step like the Dockerfile has), so unlike the main
-# requirements.txt, torch/torchvision ARE listed here -- pinned to the same
-# 2.6.0 / 0.21.0 pair already proven to work together (see requirements.txt's
-# header for why an unpinned pair breaks segmentation-models-pytorch at
-# import time), just the CPU wheel index instead of cu124.
+# requirements.txt, torch/torchvision ARE listed here.
 #
-# Measured locally with this exact CPU build: ~800MB peak RSS running the
-# real pipeline end-to-end (import + model load + two full-AOI forward
-# passes) against Community Cloud's ~1GB free-tier cap -- tight but workable
-# for a low-concurrency demo. If it OOMs in practice, the fallback is
-# Google Cloud Run with the project's Dockerfile (verified working, far more
-# headroom) -- see documentation.md "Deployment".
+# Pinned to 2.9.1 / 0.24.1, NOT the 2.6.0 / 0.21.0 pair used for local dev
+# and the Docker image: as of 2026-09, PyPI's CPU wheel index
+# (download.pytorch.org/whl/cpu) has pruned torch 2.6.0 entirely -- deploying
+# with that pin fails at `pip install` with "Could not find a version that
+# satisfies the requirement torch==2.6.0", not an import-time error. 2.9.1 is
+# the oldest version still available there as of this writing, paired with
+# its officially matching torchvision (2.X -> 0.(X+15), confirmed against
+# pytorch/vision's compatibility table). Re-verified locally against the real
+# checkpoint before pinning (not just "should work"): built the model, loaded
+# model1_lulc_unet.pt, ran load_state_dict, and did a real forward pass on
+# the actual Kadwanchi T1 stack -- all 7 classes came out correctly.
+#
+# If this pin ever 404s again the same way, check
+# https://download.pytorch.org/whl/cpu/torch/ for what's currently available
+# and re-run the same verification (don't just bump the number blindly --
+# this project has hit real torch/torchvision/segmentation-models-pytorch API
+# mismatches from unverified version jumps before).
+#
+# Measured previously with the 2.6.0/0.21.0 CPU build: ~800MB peak RSS
+# running the real pipeline end-to-end (import + model load + two full-AOI
+# forward passes) against Community Cloud's ~1GB free-tier cap -- tight but
+# workable for a low-concurrency demo. Not yet re-measured against 2.9.1 (a
+# newer torch build could plausibly use more or less); if the app OOMs in
+# practice, the fallback is Google Cloud Run with the project's Dockerfile
+# (verified working, far more headroom) -- see documentation.md "Deployment".
 #
 # To use: on the `deploy` branch only, `cp requirements-streamlit-cloud.txt
 # requirements.txt` before committing -- do not merge that swap into main.
 
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.6.0
-torchvision==0.21.0
+torch==2.9.1
+torchvision==0.24.1
 
 numpy==2.5.2
 pandas==3.0.5

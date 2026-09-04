@@ -517,6 +517,33 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
    Fixed in both `src/*.py` and the notebook generator (two mirrored
    `predict_class_map`/`render_lulc_map`/`compute_health_score` copies —
    the full-pipeline cell and the load-checkpoint-and-demo cell).
+7. **Model 2 (Siamese change U-Net) wired into the app, output looked like
+   noise instead of the clean blobs Tier-1 produces.** Diagnosed against
+   real data (Kadwanchi, Model 2's own training AOI), not guessed — turned
+   out to be two separate problems:
+   - `predict_change_map` never called `filter_small_blobs` the way
+     `tier1_fallback.run_tier1` always does — raw per-pixel argmax output
+     had 13,573 disconnected change-blobs vs Tier-1's 279. Fixed by calling
+     `filter_small_blobs` inside `predict_change_map` itself, bringing it
+     to ~800 (still noisier than Tier-1, but no longer "salt and pepper").
+   - Even after that fix, Model 2 predicts 794 ha of "new water" at
+     Kadwanchi vs Tier-1's 19.6 ha (~40x over-prediction) — a real
+     calibration problem, not a display bug. Root cause: `model2_change.py`'s
+     `WeakLabelChangeDataset` only pairs T1/T2 tiles, and only Kadwanchi has
+     both dates (the other AOIs are single-date `S1`, used for Model 1
+     only) — so Model 2 never got the multi-site training pool that took
+     Model 1 from broken to working (section 9). It's undertrained on too
+     little data, not a broken concept.
+   - **Response**: kept the blob-filter fix (real bug, worth having
+     regardless), but did NOT let Model 2 become the number the app trusts.
+     `aoi_picker.run_pipeline` now always computes Tier-1 and always uses
+     it for health score/NDVI trend/alerts; Model 2's output, when a
+     checkpoint is present, is computed separately and shown in the app
+     under a clearly labeled "experimental" expander in the Change tab,
+     with the calibration caveat stated inline. Model 2 stays trained,
+     committed, and visible — it's just not silently authoritative yet.
+     Fixing the training-data gap (multi-AOI T1/T2 pairs) is the real
+     next step if this is worth pursuing further; see section 10.
 
 ## 9. Known limitations (current state, be honest about these)
 
@@ -558,17 +585,17 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
 
 ## 10. Roadmap / open decisions
 
-- Multi-AOI training pool — **done** (see section 5, v3). Not yet retrained
-  in Colab on the pooled set; next actual run should show whether dense
-  vegetation/barren improve the way water did after the AOI enlargement.
-- Add a "pick a location" live flow to the app: user selects/searches an
-  AOI, app fetches fresh imagery and runs inference on demand. Data-fetch
-  side already supports any coordinates; needs a UI hook.
-- Cloud deployment: training stays on Colab (GPU-heavy, occasional);
-  proposed to wrap inference in a FastAPI backend, containerize, deploy to
-  a serverless platform (Google Cloud Run recommended — free tier, scales
-  to zero, matches the PS's own "cloud-native"/"API-based" preferred-tech
-  wording). Not started; needs the user's cloud account.
+- Multi-AOI training pool — **done** (see section 5, v3), applied to Model
+  1 only. Model 2 (change detection) still needs this same treatment — it's
+  only ever seen Kadwanchi's tiles, since that's the only AOI with a T1/T2
+  pair, and it shows (section 8, item 7: ~40x over-prediction of "new
+  water" even after fixing the unrelated noise bug). Would need at least
+  one more AOI with a real T1/T2 pair (not just single-date `S1`) added to
+  `AOI_JOBS`/`AUX_AOIS` before retraining Model 2.
+- "Pick a location" live flow — **done** (`app/aoi_picker.py`).
+- Cloud deployment — **in progress** (Streamlit Community Cloud, branch
+  `deploy`; Google Cloud Run is the documented fallback — see section 7's
+  "Deployment" note).
 - Real Bhuvan LULC labels once registered.
 - Geo-coded photo validation step (model_plan.md section 2.8).
 - Watershed boundary polygon for real geofencing (hook already exists in

@@ -177,9 +177,7 @@ with tab_lulc:
     st.html(design.render_legend(CLASS_NAMES, CLASS_COLORS))
 
 with tab_change:
-    change_label = ("Model 2 · Siamese change U-Net" if aoi.get("change_method") == "model2"
-                     else "Tier-1 rule-based diff")
-    st.html(f'<div class="wsig-eyebrow">{change_label} · T1 &rarr; T2</div>')
+    st.html('<div class="wsig-eyebrow">Tier-1 rule-based diff · T1 &rarr; T2</div>')
     with plt.style.context({**design.MPL_LIGHT_RC}):
         fig, ax = plt.subplots(figsize=(6, 5))
         render_change_map(aoi["change_map"], ax, "")
@@ -189,6 +187,22 @@ with tab_change:
     st.html('<div class="wsig-eyebrow" style="margin-top:8px;">Area by change type</div>')
     summary = summarize_changes(aoi["change_map"])
     st.table({name: f"{stats['hectares']} ha" for name, stats in summary.items()})
+
+    if aoi.get("change_map_model2") is not None:
+        with st.expander("Also see: Model 2 (Siamese change U-Net) — experimental"):
+            st.caption(
+                "A second, more advanced change-detection model, trained separately from the "
+                "rule-based diff above. Still experimental: currently trained on a single AOI "
+                "(Kadwanchi) and measurably over-predicts some change classes there — the numbers "
+                "above, not these, drive the health score and alerts elsewhere in the app."
+            )
+            with plt.style.context({**design.MPL_LIGHT_RC}):
+                fig2, ax2 = plt.subplots(figsize=(6, 5))
+                render_change_map(aoi["change_map_model2"], ax2, "")
+                fig2.patch.set_facecolor(design.PAPER)
+                st.pyplot(fig2)
+            summary2 = summarize_changes(aoi["change_map_model2"])
+            st.table({name: f"{stats['hectares']} ha" for name, stats in summary2.items()})
 
 with tab_health:
     col1, col2 = st.columns([1, 2])
@@ -246,7 +260,9 @@ with tab_field:
 
 with tab_about:
     change_detection_blurb = (
-        "a Siamese U-Net (Model 2) trained on weak labels derived from Model 1's own class maps"
+        "a rule-based diff of two Model 1 passes, no separate training needed — plus, when "
+        "available, a second experimental model (a trained Siamese change U-Net) shown "
+        "separately in the Change tab, not yet trusted to drive the numbers above it"
         if model2 is not None else
         "a rule-based diff of two Model 1 passes, no separate training needed"
     )

@@ -26,7 +26,7 @@ from config import (
     IN_CHANNELS, MODELS_DIR, NODATA_CLASS, NUM_CLASSES, OUTPUTS_DIR,
 )
 from model1_unet import build_model
-from tier1_fallback import run_tier1, summarize_changes
+from tier1_fallback import run_tier1, filter_small_blobs, summarize_changes
 from recommendation_engine import compute_health_score, generate_alerts, ndvi_trend
 
 
@@ -86,6 +86,14 @@ def predict_change_map(model2, img_t1, img_t2, device):
     # source/target class in diff_to_change_map); do the same here explicitly.
     nodata = np.all(img_t1[:4] == 0, axis=0) | np.all(img_t2[:4] == 0, axis=0)
     change_map[nodata] = 0
+
+    # Tier-1's diff always gets this same treatment (see tier1_fallback.run_tier1) --
+    # without it, a raw per-pixel argmax looks dramatically noisier than Tier-1's
+    # output even when the underlying prediction quality is comparable. Real
+    # difference measured on Kadwanchi: 13,573 connected change-blobs raw vs
+    # 279 for Tier-1; this brings it to ~800, much closer (not identical --
+    # Model 2 is still less reliable than Tier-1, see documentation.md).
+    change_map = filter_small_blobs(change_map)
 
     return change_map
 

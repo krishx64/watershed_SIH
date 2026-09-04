@@ -29,7 +29,7 @@ import streamlit as st
 from config import AOI_CENTER_LAT, AOI_CENTER_LON, AOI_NAME, DATA_PROCESSED
 from data_download import search_scene, clip_scene_to_stack
 from preprocessing import build_6channel_stack
-from inference_demo import predict_class_map
+from inference_demo import predict_class_map, predict_change_map
 from tier1_fallback import run_tier1
 from recommendation_engine import compute_health_score, generate_alerts, ndvi_trend
 
@@ -70,8 +70,13 @@ def bbox_around(lat: float, lon: float, half_km: float = HALF_KM):
     return (lon - dlon, lat - dlat, lon + dlon, lat + dlat)
 
 
-def run_pipeline(bbox, label: str, model, device, on_step=None):
-    """Fetch T1+T2, build stacks, run Model 1 + Tier-1 change detection. Returns a result dict.
+def run_pipeline(bbox, label: str, model1, model2, device, on_step=None):
+    """Fetch T1+T2, build stacks, run Model 1 + change detection. Returns a result dict.
+
+    Change detection uses Model 2 (Siamese change U-Net) when a trained
+    checkpoint is available, otherwise falls back to the Tier-1 rule-based
+    diff of the two Model 1 class maps -- same fallback relationship as the
+    rest of the project (documentation.md section 3).
 
     on_step(msg), if given, is called before each named stage so a caller can
     surface live progress -- this pipeline takes 20-60s (two live satellite
@@ -93,38 +98,47 @@ def run_pipeline(bbox, label: str, model, device, on_step=None):
         step(f"Computing NDVI / NDWI for {date_tag}...")
         build_6channel_stack(raw_path, stack_path)
         step(f"Running land-cover model on {date_tag}...")
-        class_map, img, profile = predict_class_map(model, stack_path, device)
+        class_map, img, profile = predict_class_map(model1, stack_path, device)
         results[date_tag] = {"class_map": class_map, "img": img, "profile": profile, "date": item.datetime.date()}
 
-    step("Comparing T1 vs T2 for changes...")
-    change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"])
+    if model2 is not None:
+        step("Comparing T1 vs T2 for changes (Model 2)...")
+        change_map = predict_change_map(model2, results["T1"]["img"], results["T2"]["img"], device)
+        change_method = "model2"
+    else:
+        step("Comparing T1 vs T2 for changes (Tier-1 fallback)...")
+        change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"])
+        change_method = "tier1"
     step("Computing health score & NDVI trend...")
     health = compute_health_score(results["T2"]["class_map"])
     trend = ndvi_trend(results["T1"]["img"], results["T2"]["img"])
     step("Generating alerts & recommendations...")
     alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
-    return results, change_map, health, trend, alerts
+    return results, change_map, change_method, health, trend, alerts
 
 
-def _set_active_aoi(key, display_name, lat, lon, trained, model, device):
+def _set_active_aoi(key, display_name, lat, lon, trained, model1, model2, device):
     bbox = bbox_around(lat, lon)
     with st.status(f"Analyzing {display_name}...", expanded=True) as status:
         def on_step(msg):
             status.update(label=msg)
             st.write(f":gray[{msg}]")
 
-        results, change_map, health, trend, alerts = run_pipeline(bbox, key, model, device, on_step=on_step)
+        results, change_map, change_method, health, trend, alerts = run_pipeline(
+            bbox, key, model1, model2, device, on_step=on_step
+        )
         status.update(label=f"Done — {display_name} ready", state="complete", expanded=False)
     st.session_state["active_aoi"] = {
         "key": key, "display_name": display_name, "lat": lat, "lon": lon, "trained": trained,
         "class_t1": results["T1"]["class_map"], "class_t2": results["T2"]["class_map"],
         "img_t1": results["T1"]["img"], "img_t2": results["T2"]["img"], "profile": results["T2"]["profile"],
         "t1_date": results["T1"]["date"], "t2_date": results["T2"]["date"],
-        "change_map": change_map, "health": health, "trend": trend, "alerts": alerts,
+        "change_map": change_map, "change_method": change_method,
+        "health": health, "trend": trend, "alerts": alerts,
     }
 
 
-def render_picker(model1, device):
+def render_picker(model1, model2, device):
     st.html('<div class="wsig-eyebrow">Location</div>')
 
     current = st.session_state.get("active_aoi")  # None until a location has been picked
@@ -134,7 +148,7 @@ def render_picker(model1, device):
                       disabled=(current is not None and current["key"] == preset["key"])):
             try:
                 _set_active_aoi(preset["key"], preset["display_name"], preset["lat"], preset["lon"],
-                                 True, model1, device)
+                                 True, model1, model2, device)
                 st.rerun()
             except RuntimeError as e:
                 st.error(f"Couldn't load {preset['display_name']}: {e}")
@@ -154,7 +168,7 @@ def render_picker(model1, device):
                     lat, lon, name = found
                     try:
                         _set_active_aoi(f"search_{lat:.3f}_{lon:.3f}", name.split(",")[0], lat, lon,
-                                         False, model1, device)
+                                         False, model1, model2, device)
                         st.rerun()
                     except RuntimeError as e:
                         st.error(f"Couldn't complete this location: {e}")
@@ -166,7 +180,7 @@ def render_picker(model1, device):
             if st.button("Analyze coordinates"):
                 try:
                     _set_active_aoi(f"coord_{lat:.3f}_{lon:.3f}", f"{lat:.3f}, {lon:.3f}", lat, lon,
-                                     False, model1, device)
+                                     False, model1, model2, device)
                     st.rerun()
                 except RuntimeError as e:
                     st.error(f"Couldn't complete this location: {e}")

@@ -66,6 +66,30 @@ def predict_class_map(model, stack_path, device):
     return class_map, img, profile
 
 
+def predict_change_map(model2, img_t1, img_t2, device):
+    """Run Model 2 (Siamese Change U-Net) on two already-loaded 6-channel stacks
+    (C,H,W float32 arrays, as returned by predict_class_map's `img`). Returns a
+    (H,W) uint8 change-class map (0-4, see config.CHANGE_CLASS_NAMES)."""
+    padded_t1, (orig_h, orig_w) = pad_to_multiple(img_t1)
+    padded_t2, _ = pad_to_multiple(img_t2)
+    tensor_t1 = torch.from_numpy(padded_t1).unsqueeze(0).to(device)
+    tensor_t2 = torch.from_numpy(padded_t2).unsqueeze(0).to(device)
+
+    model2.eval()
+    with torch.no_grad(), torch.autocast(device_type=device.type, enabled=(device.type == "cuda")):
+        logits = model2(tensor_t1, tensor_t2)
+    change_map = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()[:orig_h, :orig_w].astype("uint8")
+
+    # Same nodata reasoning as predict_class_map: a pixel with no real
+    # coverage at either date can't have a real change verdict. Tier-1's diff
+    # already excludes NODATA_CLASS pixels implicitly (they never match any
+    # source/target class in diff_to_change_map); do the same here explicitly.
+    nodata = np.all(img_t1[:4] == 0, axis=0) | np.all(img_t2[:4] == 0, axis=0)
+    change_map[nodata] = 0
+
+    return change_map
+
+
 def render_lulc_map(class_map, ax, title):
     cmap = ListedColormap([np.array(CLASS_COLORS[i]) / 255 for i in range(NUM_CLASSES)])
     # Pixels holding NODATA_CLASS (255) are intentionally out of [0, NUM_CLASSES-1] --

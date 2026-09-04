@@ -32,6 +32,7 @@ import torch
 
 from config import CLASS_COLORS, CLASS_NAMES, MODELS_DIR
 from model1_unet import build_model as build_model1
+from model2_change import SiameseChangeUNet
 from tier1_fallback import summarize_changes
 from inference_demo import render_lulc_map, render_change_map
 import matplotlib.pyplot as plt
@@ -47,6 +48,7 @@ st.set_page_config(
 st.html(design.inject_css())
 
 MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
+MODEL2_PATH = MODELS_DIR / "model2_change_siamese.pt"
 
 
 # ---------------------------------------------------------------- sidebar / model intake
@@ -70,6 +72,21 @@ if not MODEL1_PATH.exists():
         st.rerun()
 else:
     st.sidebar.html(f'<span style="color:{design.SAGE};">● found</span>')
+
+st.sidebar.html('<div class="wsig-eyebrow" style="margin-top:10px;">Model 2 (optional)</div>')
+st.sidebar.caption(f"`{MODEL2_PATH.relative_to(MODELS_DIR.parents[0])}`")
+if not MODEL2_PATH.exists():
+    up_model2 = st.sidebar.file_uploader(
+        "Add model2_change_siamese.pt", type=["pt"], label_visibility="collapsed",
+        help="Optional. Without it, change detection falls back to the Tier-1 rule-based diff.",
+    )
+    if up_model2 is not None:
+        MODEL2_PATH.write_bytes(up_model2.getvalue())
+        st.sidebar.success("Checkpoint saved.")
+        st.rerun()
+    st.sidebar.caption("Not found — using Tier-1 rule-based diff for change detection.")
+else:
+    st.sidebar.html(f'<span style="color:{design.SAGE};">● found — using Model 2 for change detection</span>')
 
 st.sidebar.caption(
     "Imagery isn't uploaded — every location (presets included) is fetched live from Sentinel-2 "
@@ -107,7 +124,19 @@ def load_model1():
     return model, device, ckpt["epoch"], ckpt["val_loss"]
 
 
+@st.cache_resource
+def load_model2(_device):
+    if not MODEL2_PATH.exists():
+        return None, None, None
+    model = SiameseChangeUNet().to(_device)
+    ckpt = torch.load(MODEL2_PATH, map_location=_device)
+    model.load_state_dict(ckpt["model_state"])
+    model.eval()
+    return model, ckpt["epoch"], ckpt["val_loss"]
+
+
 model1, device, epoch, val_loss = load_model1()
+model2, epoch2, val_loss2 = load_model2(device)
 
 if "active_aoi" not in st.session_state:
     st.session_state["active_aoi"] = None  # nothing picked yet -- don't auto-fetch a default
@@ -122,7 +151,7 @@ if aoi is None:
 else:
     st.html(design.render_header(aoi["display_name"], aoi["lat"], aoi["lon"], epoch, val_loss, device, aoi["trained"]))
 
-render_picker(model1, device)
+render_picker(model1, model2, device)
 aoi = st.session_state["active_aoi"]  # picker may have just set/replaced it
 
 if aoi is None:
@@ -148,7 +177,9 @@ with tab_lulc:
     st.html(design.render_legend(CLASS_NAMES, CLASS_COLORS))
 
 with tab_change:
-    st.html('<div class="wsig-eyebrow">Tier-1 rule-based diff · T1 &rarr; T2</div>')
+    change_label = ("Model 2 · Siamese change U-Net" if aoi.get("change_method") == "model2"
+                     else "Tier-1 rule-based diff")
+    st.html(f'<div class="wsig-eyebrow">{change_label} · T1 &rarr; T2</div>')
     with plt.style.context({**design.MPL_LIGHT_RC}):
         fig, ax = plt.subplots(figsize=(6, 5))
         render_change_map(aoi["change_map"], ax, "")
@@ -214,6 +245,11 @@ with tab_field:
     render_field_verification_tab(model1, device)
 
 with tab_about:
+    change_detection_blurb = (
+        "a Siamese U-Net (Model 2) trained on weak labels derived from Model 1's own class maps"
+        if model2 is not None else
+        "a rule-based diff of two Model 1 passes, no separate training needed"
+    )
     st.html(
         f"""<div class="wsig-panel">
 <div class="wsig-eyebrow">Problem statement PS-26015</div>
@@ -228,8 +264,7 @@ Hackathon 2026.
 satellite stack (R, G, B, NIR, NDVI, NDWI) and classifies every 10m patch into one of
 7 land-cover types. Trained on 3 real sites (Kadwanchi, Tamhini Ghat, Donimalai) chosen to
 cover the classes any single site lacked — see the presets above.</li>
-<li><b style="color:{design.TEXT};">Change detection</b> — a rule-based diff of two Model 1
-passes, no separate training needed.</li>
+<li><b style="color:{design.TEXT};">Change detection</b> — {change_detection_blurb}.</li>
 <li><b style="color:{design.TEXT};">Recommendation engine</b> — plain if-then rules, no ML —
 every alert traces back to a specific, auditable reason.</li>
 <li><b style="color:{design.TEXT};">Location picker</b> — presets are the model's actual

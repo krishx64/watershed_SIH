@@ -271,18 +271,47 @@ available, not worth further heuristic tuning in the meantime.
   before trusting it in Colab (see CLAUDE.md), and can run the full
   pipeline standalone if preferred over Colab.
 - **Streamlit app** (`project/app/streamlit_app.py`, styled by
-  `project/app/design.py`) — a local web UI wrapping the trained model:
-  Land Cover, Change, Health & Alerts, Map, Explore a Location, and About
-  tabs. Currently local-only, not deployed. Reads model/data from the same
-  local paths the scripts use, or accepts them via sidebar upload.
-  Branded "Watershed Signal."
+  `project/app/design.py`) — a web UI wrapping the trained model: Land
+  Cover, Change, Health & Alerts, Map, Field Verification, and About tabs,
+  all driven by a single unified location picker (3 trained-site presets,
+  or search/enter any coordinates — see `project/app/aoi_picker.py`).
+  Reads model/data from the same local paths the scripts use, or accepts
+  them via sidebar upload. Branded "Watershed Signal."
+
+  **Deployment (Streamlit Community Cloud, branch `deploy`)**: kept
+  deliberately separate from `main` — the deploy branch force-commits the
+  55MB model checkpoint (gitignored on `main` by design) and swaps in a
+  CPU-pinned `requirements.txt` (torch would otherwise clobber `main`'s
+  CUDA setup, see requirements.txt's own header). Real deploy-only bugs hit
+  and fixed, each verified against the real failure before/after, not
+  guessed:
+  - `torch==2.6.0` pruned from PyPI's CPU wheel index entirely by 2026-09 —
+    re-pinned to `2.9.1`/`0.24.1` (oldest still available, officially
+    matching pair), re-verified against the real checkpoint (load +
+    forward pass) before shipping.
+  - Streamlit resolves `.streamlit/config.toml` relative to CWD, and Cloud
+    runs the app with CWD = repo root, not `project/` — the light theme
+    silently fell back to Streamlit's own default. Fixed by also placing
+    `config.toml` at the true repo root; reproduced and confirmed via
+    `streamlit.config.get_option('theme.base')` locally before trusting it.
+  - Viewers could still flip to dark mode via the in-app "⋮" menu even
+    with the theme fixed — `client.toolbarMode = "minimal"` hides that
+    menu entirely (no `menu_items` are set, so nothing's left in it).
+  - The partial-scene-nodata bug (misclassified as fake "water") — see
+    section 8, item 6.
+  - Fallback if Community Cloud's free-tier RAM (~1GB) proves too tight in
+    practice (measured locally: ~800MB peak for the pipeline alone, before
+    Streamlit's own overhead): Google Cloud Run, using
+    `project/Dockerfile` — already built and verified running locally with
+    the real checkpoint baked in.
 
   **Design system, v2 (current)**: a white, "official government report"
   aesthetic, per explicit direction — navy institutional identity color,
   Source Serif 4 display type for gazette-like gravitas + IBM Plex
   Sans/Mono, a letterhead masthead (navy top rule + institutional eyebrow
   line), and a health-score gauge re-skinned as a flat "seal" (double ring,
-  no glow). Light CartoDB Positron basemap. Superseded a v1 dark
+  no glow). OpenStreetMap basemap (switched from CartoDB Positron, whose
+  free tier prompts for an API key past a certain zoom level). Superseded a v1 dark
   "instrument panel" theme (warm near-black, Space Grotesk, glowing gauge)
   built first and then explicitly rejected in favor of v2 — kept in git
   history / this note as the record of that decision, not in the code.
@@ -463,6 +492,31 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
    Drive space for them. `manifest.csv` moved alongside them, since a
    Drive-persisted manifest could otherwise go stale after a session reset
    wiped the local tiles it refers to.
+6. **Partial-scene nodata misclassified as a real class (live app, not
+   Colab).** Caught via a screenshot of the deployed Donimalai Mine preset:
+   the T2 land-cover map showed nearly half the frame as solid "Water,"
+   with a suspiciously clean geometric boundary — implausible for a
+   Karnataka mining site with no lake nearby. Traced (not guessed) by
+   fetching the actual live T1/T2 scenes for that AOI and checking pixel
+   values directly: T2's matched Sentinel-2 scene footprint only
+   partially overlapped the requested bbox (a tile-edge coverage gap, not
+   cloud cover — the STAC `eo:cloud_cover` field was ~0%, scene-wide, and
+   didn't reflect this), leaving 53.4% of the clipped stack as all-zero
+   reflectance. The model then classified that all-zero region as a real
+   class (water) instead of "no data," since it never learned a "this
+   pixel is empty" case at training time. Fixed with a `NODATA_CLASS = 255`
+   sentinel (`config.py`) assigned post-argmax wherever R,G,B,NIR are all
+   exactly 0, kept outside `0..NUM_CLASSES-1` so the trained model's output
+   head is unaffected; `compute_health_score`/`ndvi_trend` now explicitly
+   exclude it, `render_lulc_map`/the Folium overlay render it as a distinct
+   neutral gray, and it's excluded from the Tier-1 change map for free
+   (`np.isin` membership checks against real classes never match 255).
+   Re-verified against the actual failing data after the fix: health score,
+   NDVI trend, change map, and alerts all computed cleanly, and the "new
+   water" alert area dropped from a false ~44 ha blob to a real 0.16 ha.
+   Fixed in both `src/*.py` and the notebook generator (two mirrored
+   `predict_class_map`/`render_lulc_map`/`compute_health_score` copies —
+   the full-pipeline cell and the load-checkpoint-and-demo cell).
 
 ## 9. Known limitations (current state, be honest about these)
 
@@ -496,7 +550,11 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
   coordinates (including the no-GPS fallback path), and the full
   fetch→predict→log pipeline ran successfully against real satellite data.
   What's still missing is real photos to actually use it with.
-- **Not deployed** — Streamlit app is local-only; no public URL yet.
+- **Deploying to Streamlit Community Cloud** (branch `deploy`, kept separate
+  from `main` — see the "Deployment" note below for why). Google Cloud Run
+  is the fallback if Community Cloud's free-tier RAM (~1GB) proves too
+  tight in practice (measured locally: ~800MB peak just for the pipeline
+  itself, before Streamlit's own overhead).
 
 ## 10. Roadmap / open decisions
 

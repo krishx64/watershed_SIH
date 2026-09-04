@@ -156,6 +156,24 @@ CLASS_COLORS = {  # RGB, for visualization
     6: (222, 184, 135),
 }
 
+# Sentinel for "no real satellite coverage at this pixel" (a Sentinel-2 scene
+# whose footprint only partially overlaps the requested AOI -- common near
+# MGRS tile edges -- leaves the uncovered part of the clip as all-zero
+# reflectance). This is assigned by inference_demo.predict_class_map as a
+# post-processing step, AFTER the model's argmax -- it is never a real model
+# output and must stay outside 0..NUM_CLASSES-1 (255 keeps NUM_CLASSES itself
+# unchanged at 7, matching the trained checkpoint's output head). Added to
+# CLASS_NAMES/CLASS_COLORS here (after NUM_CLASSES is computed) purely so
+# plain dict lookups (legend, Folium overlay coloring, field-verification
+# labels) render it correctly with zero special-casing at each call site.
+# Real, verified bug: a live Donimalai Mine deploy showed ~53% of one date's
+# clipped AOI as solid "Water" -- traced to a scene whose footprint only
+# half-covered the bbox; the all-zero nodata region was getting a real class
+# prediction from the model instead of being excluded. See documentation.md.
+NODATA_CLASS = 255
+CLASS_NAMES[NODATA_CLASS] = "No data / no coverage"
+CLASS_COLORS[NODATA_CLASS] = (225, 225, 225)
+
 # ---- Change-detection classes (model_plan.md 3.3) ----
 CHANGE_CLASS_NAMES = {
     0: "No change",

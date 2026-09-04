@@ -100,7 +100,7 @@ def run_pipeline(bbox, label: str, model, device, on_step=None):
     change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"])
     step("Computing health score & NDVI trend...")
     health = compute_health_score(results["T2"]["class_map"])
-    trend = ndvi_trend(results["T1"]["img"][4], results["T2"]["img"][4])
+    trend = ndvi_trend(results["T1"]["img"], results["T2"]["img"])
     step("Generating alerts & recommendations...")
     alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
     return results, change_map, health, trend, alerts

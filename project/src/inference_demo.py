@@ -18,12 +18,12 @@ import numpy as np
 import rasterio
 import torch
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, Normalize
 import folium
 
 from config import (
     AOI_NAME, CHANGE_CLASS_NAMES, CLASS_COLORS, CLASS_NAMES, DATA_PROCESSED,
-    IN_CHANNELS, MODELS_DIR, NUM_CLASSES, OUTPUTS_DIR,
+    IN_CHANNELS, MODELS_DIR, NODATA_CLASS, NUM_CLASSES, OUTPUTS_DIR,
 )
 from model1_unet import build_model
 from tier1_fallback import run_tier1, summarize_changes
@@ -50,13 +50,30 @@ def predict_class_map(model, stack_path, device):
     model.eval()
     with torch.no_grad(), torch.autocast(device_type=device.type, enabled=(device.type == "cuda")):
         logits = model(tensor)
-    class_map = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()[:orig_h, :orig_w]
-    return class_map.astype("uint8"), img, profile
+    class_map = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()[:orig_h, :orig_w].astype("uint8")
+
+    # R,G,B,NIR (channels 0-3) all exactly zero = no real satellite coverage at
+    # that pixel (a scene whose footprint only partially overlapped the AOI --
+    # common near MGRS tile edges), not a real land-cover reading. Left alone,
+    # the model still assigns those pixels a real class from pure-zero input,
+    # which reads as a plausible (and wrong) result -- e.g. a solid "water"
+    # blob with a suspiciously straight edge. Override with the nodata
+    # sentinel so downstream health/change/legend/display all treat it as
+    # "no data" rather than a real reading -- see config.NODATA_CLASS.
+    nodata = np.all(img[:4] == 0, axis=0)
+    class_map[nodata] = NODATA_CLASS
+
+    return class_map, img, profile
 
 
 def render_lulc_map(class_map, ax, title):
     cmap = ListedColormap([np.array(CLASS_COLORS[i]) / 255 for i in range(NUM_CLASSES)])
-    ax.imshow(class_map, cmap=cmap, vmin=0, vmax=NUM_CLASSES - 1, interpolation="nearest")
+    # Pixels holding NODATA_CLASS (255) are intentionally out of [0, NUM_CLASSES-1] --
+    # set_over + clip=False routes them to a distinct color instead of being
+    # clamped into whatever real class sits at the top of the range.
+    cmap.set_over(np.array(CLASS_COLORS[NODATA_CLASS]) / 255)
+    norm = Normalize(vmin=0, vmax=NUM_CLASSES - 1, clip=False)
+    ax.imshow(class_map, cmap=cmap, norm=norm, interpolation="nearest")
     ax.set_title(title)
     ax.axis("off")
 
@@ -113,7 +130,7 @@ def main():
 
     change_map = run_tier1(class_t1, class_t2)
     health = compute_health_score(class_t2)
-    trend = ndvi_trend(img_t1[4], img_t2[4])  # channel 4 = NDVI
+    trend = ndvi_trend(img_t1, img_t2)
 
     print(f"\nHealth score (T2): {health:.1f}/100")
     print(f"NDVI trend (T1->T2): {trend:+.4f}")

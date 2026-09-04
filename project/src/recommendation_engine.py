@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
 
-from config import CLASS_NAMES
+from config import CLASS_NAMES, NODATA_CLASS
 
 WATER, DENSE_VEG, AGRI, SPARSE_VEG, BARREN, BUILTUP, FALLOW = range(7)
 
@@ -30,14 +30,29 @@ CLASS_HEALTH_WEIGHT = {
 
 def compute_health_score(class_map: np.ndarray) -> float:
     """Simple, explainable composite: mean of per-pixel class health weights.
-    100 = ideal mix of water/vegetation, 0 = fully barren/built-up."""
-    weights = np.vectorize(CLASS_HEALTH_WEIGHT.get)(class_map)
+    100 = ideal mix of water/vegetation, 0 = fully barren/built-up.
+    Pixels with no real satellite coverage (config.NODATA_CLASS) are excluded
+    rather than averaged in -- otherwise a partial-scene gap silently pulls
+    the score toward whatever weight that pixel's spurious model prediction
+    happened to get."""
+    valid = class_map != NODATA_CLASS
+    if not valid.any():
+        return 0.0
+    weights = np.vectorize(CLASS_HEALTH_WEIGHT.get)(class_map[valid])
     return float(np.mean(weights))
 
 
-def ndvi_trend(ndvi_t1: np.ndarray, ndvi_t2: np.ndarray) -> float:
-    """Mean NDVI change; negative = declining vegetation vigor."""
-    return float(np.mean(ndvi_t2) - np.mean(ndvi_t1))
+def ndvi_trend(img_t1: np.ndarray, img_t2: np.ndarray) -> float:
+    """Mean NDVI change (channel 4 of the 6-channel R,G,B,NIR,NDVI,NDWI stack);
+    negative = declining vegetation vigor. Excludes pixels with no real
+    satellite coverage (R,G,B,NIR all exactly 0) in either date -- those read
+    as NDVI=0 (0/0), which biases the trend toward zero if left in."""
+    no_coverage_t1 = np.all(img_t1[:4] == 0, axis=0)
+    no_coverage_t2 = np.all(img_t2[:4] == 0, axis=0)
+    valid = ~(no_coverage_t1 | no_coverage_t2)
+    if not valid.any():
+        return 0.0
+    return float(np.mean(img_t2[4][valid]) - np.mean(img_t1[4][valid]))
 
 
 def generate_alerts(class_map_t2: np.ndarray, change_map: np.ndarray,

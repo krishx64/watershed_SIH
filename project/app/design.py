@@ -7,6 +7,8 @@ in mono type like a survey readout.
 Kept separate from streamlit_app.py so the page logic isn't buried in HTML/CSS.
 """
 
+from pathlib import Path
+
 # ---------------------------------------------------------------- tokens
 
 PAPER = "#FFFFFF"
@@ -48,6 +50,20 @@ MPL_LIGHT_RC = {
     "font.size": 10,
 }
 MPL_DARK_RC = MPL_LIGHT_RC  # alias kept for any stale references
+
+LOGO_PATH = Path(__file__).resolve().parent / "assets" / "logo.png"
+
+
+def _logo_data_uri() -> str:
+    """Base64-inlines assets/logo.png so it can drop into any st.html() call
+    with no separate static-file route to configure. Regenerate the PNG via
+    `python app/assets/make_logo.py`; this just reads whatever's on disk."""
+    import base64
+    return "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+
+
+def render_logo(size: int = 40) -> str:
+    return f'<img src="{_logo_data_uri()}" width="{size}" height="{size}" alt="Watershed Signal" style="display:block;">'
 
 
 def inject_css() -> str:
@@ -100,8 +116,10 @@ color: var(--ink-muted); margin: 0 0 4px 0;
 
 
 def render_masthead() -> str:
-    """The top letterhead band -- a 3px navy rule + institutional eyebrow line."""
-    return f"""<div style="border-top:3px solid {NAVY}; padding-top:10px; margin-bottom:2px;">
+    """The top letterhead band -- a 3px navy rule + mark + institutional eyebrow line."""
+    return f"""<div style="border-top:3px solid {NAVY}; padding-top:10px; margin-bottom:2px;
+display:flex; align-items:center; gap:8px;">
+{render_logo(20)}
 <div style="font-family:{FONT_MONO}; font-size:11px; letter-spacing:0.14em; color:{INK_MUTED}; text-transform:uppercase;">
 Government of India &middot; Ministry of Rural Development &middot; Smart India Hackathon 2026
 </div>
@@ -134,8 +152,11 @@ border-bottom:1px solid {RULE}; padding:10px 0 16px 0; margin-bottom:20px; flex-
 <div>
 <div style="font-family:{FONT_MONO}; font-size:11px; letter-spacing:0.1em; color:{TERRACOTTA};
 text-transform:uppercase; margin-bottom:4px;">PS-26015 &middot; Geospatial Watershed Intelligence</div>
+<div style="display:flex; align-items:center; gap:12px;">
+{render_logo(38)}
 <div style="font-family:{FONT_DISPLAY}; font-size:34px; font-weight:700; color:{INK}; line-height:1.1;">
 Watershed&nbsp;Signal
+</div>
 </div>
 </div>
 <div style="display:flex; gap:22px; flex-wrap:wrap; border:1px solid {RULE}; border-radius:4px; padding:10px 16px;">

@@ -1,30 +1,25 @@
-# PS-26015 Watershed Signal — pinned dependencies.
+# Streamlit Community Cloud deploy manifest.
 #
-# torch/torchvision are deliberately NOT listed below, and must be installed
-# as an EXPLICITLY VERSION-PINNED PAIR, not just "latest from the CUDA index":
+# Community Cloud just runs `pip install -r requirements.txt` (no separate
+# pre-install step like the Dockerfile has), so unlike the main
+# requirements.txt, torch/torchvision ARE listed here -- pinned to the same
+# 2.6.0 / 0.21.0 pair already proven to work together (see requirements.txt's
+# header for why an unpinned pair breaks segmentation-models-pytorch at
+# import time), just the CPU wheel index instead of cu124.
 #
-#   .venv/Scripts/python.exe -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
-#   .venv/Scripts/python.exe -m pip install -r requirements.txt
+# Measured locally with this exact CPU build: ~800MB peak RSS running the
+# real pipeline end-to-end (import + model load + two full-AOI forward
+# passes) against Community Cloud's ~1GB free-tier cap -- tight but workable
+# for a low-concurrency demo. If it OOMs in practice, the fallback is
+# Google Cloud Run with the project's Dockerfile (verified working, far more
+# headroom) -- see documentation.md "Deployment".
 #
-# Two real failure modes hit in this project, both from getting this install
-# wrong (see documentation.md for the full incident):
-#   1. Plain `pip install -r requirements.txt` (or any other package pulling
-#      torch in as a transitive dependency) silently grabs a CPU-only build
-#      from the default PyPI index on Windows -- no error, inference just
-#      quietly gets much slower.
-#   2. Installing torch and torchvision UNPINNED (even both together, even
-#      both from the CUDA index) can resolve to a mismatched pair -- e.g.
-#      torch 2.6.0 + torchvision 0.29.0, which is not the version torch 2.6.0
-#      actually ships against (0.21.0 is). The mismatch doesn't fail at
-#      install time -- it fails later, at import, as
-#      `RuntimeError: operator torchvision::nms does not exist`, when
-#      torchvision's compiled extensions don't match the loaded torch ABI.
-#      Explicit version pins on BOTH packages together is the only reliable
-#      fix; re-verify with `pip list | grep torch` after any reinstall.
-#
-# If you ever see the app's header say "DEVICE: CPU" on a machine with an
-# NVIDIA GPU, or an import-time `torchvision::nms` error, re-run the pinned
-# install line above.
+# To use: on the `deploy` branch only, `cp requirements-streamlit-cloud.txt
+# requirements.txt` before committing -- do not merge that swap into main.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0
+torchvision==0.21.0
 
 numpy==2.5.2
 pandas==3.0.5

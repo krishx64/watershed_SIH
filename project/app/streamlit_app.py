@@ -40,7 +40,10 @@ import design
 from aoi_picker import render_picker
 from geo_photo import render_field_verification_tab
 
-st.set_page_config(page_title="Watershed Signal · PS-26015", layout="wide")
+st.set_page_config(
+    page_title="Watershed Signal · PS-26015", layout="wide",
+    page_icon=str(design.LOGO_PATH),
+)
 st.html(design.inject_css())
 
 MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
@@ -49,8 +52,11 @@ MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
 # ---------------------------------------------------------------- sidebar / model intake
 
 st.sidebar.html(
+    f'<div style="display:flex; align-items:center; gap:10px;">'
+    f'{design.render_logo(30)}'
     f'<div style="font-family:{design.FONT_DISPLAY}; font-size:20px; font-weight:700;">Watershed Signal</div>'
-    f'<div class="wsig-eyebrow" style="margin-top:2px;">Model intake</div>'
+    f'</div>'
+    f'<div class="wsig-eyebrow" style="margin-top:6px;">Model intake</div>'
 )
 st.sidebar.divider()
 

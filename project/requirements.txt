@@ -61,6 +61,18 @@ segmentation_models_pytorch==0.5.0
 # shims it to `np.isin` (numpy's own official replacement) before import --
 # same class of fix as the segmentation-models-pytorch mismatches above, see
 # documentation.md section 8.
+#
+# numba/llvmlite explicitly floored below: numba only added Python 3.14
+# support in its 0.63.0 release (2025-12-08; llvmlite 0.46.0 alongside it).
+# pysheds itself doesn't pin a numba version, so an unpinned install can
+# silently resolve an older, incompatible pair on a platform running a very
+# new Python -- this caused a real ModuleNotFoundError('pysheds') in
+# production on Streamlit Community Cloud (Python 3.14), see
+# documentation.md section 8. This is also why watershed_delineation's
+# import is wrapped defensively in aoi_picker.py -- a missing/broken
+# pysheds should degrade the watershed-boundary feature, not crash the app.
+numba>=0.63.0
+llvmlite>=0.46.0
 pysheds==0.5
 
 streamlit==1.63.0

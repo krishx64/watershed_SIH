@@ -32,7 +32,21 @@ from preprocessing import build_6channel_stack
 from inference_demo import predict_class_map, predict_change_map
 from tier1_fallback import run_tier1
 from recommendation_engine import compute_health_score, generate_alerts, ndvi_trend
-from watershed_delineation import get_watershed_context
+
+# watershed_delineation pulls in pysheds -> numba/llvmlite, which can fail to
+# install or import on a deploy platform's specific Python version (e.g.
+# numba only added Python 3.14 support in its 0.63.0 release -- a platform
+# on a very new interpreter can end up with no compatible numba/llvmlite
+# wheel at all, even though nothing about this project's own code changed).
+# A missing/broken pysheds should degrade the one feature it powers, not
+# take down the whole app at import time -- get_watershed_context is called
+# inside a try/except in run_pipeline below regardless, so this only adds
+# the same tolerance one level up, to the import itself.
+try:
+    from watershed_delineation import get_watershed_context
+except ImportError as e:
+    get_watershed_context = None
+    _watershed_import_error = e
 
 LIVE_DIR = DATA_PROCESSED / "live"
 LIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -117,14 +131,20 @@ def run_pipeline(bbox, label: str, model1, model2, device, on_step=None):
     # ungeofenced behavior rather than raising.
     step("Delineating watershed boundary & drainage network (DEM)...")
     watershed_mask = drainage_network = pour_point = watershed_caveat = None
-    try:
-        watershed_context = get_watershed_context(bbox, results["T2"]["profile"])
-        watershed_mask = watershed_context["watershed_mask"]
-        drainage_network = watershed_context["drainage_network"]
-        pour_point = watershed_context["pour_point"]
-        watershed_caveat = watershed_context["caveat"]
-    except Exception as e:
-        watershed_caveat = f"Watershed boundary unavailable this run ({e}) -- change detection not geofenced."
+    if get_watershed_context is None:
+        watershed_caveat = (
+            f"Watershed boundary unavailable ({_watershed_import_error}) -- "
+            "change detection not geofenced."
+        )
+    else:
+        try:
+            watershed_context = get_watershed_context(bbox, results["T2"]["profile"])
+            watershed_mask = watershed_context["watershed_mask"]
+            drainage_network = watershed_context["drainage_network"]
+            pour_point = watershed_context["pour_point"]
+            watershed_caveat = watershed_context["caveat"]
+        except Exception as e:
+            watershed_caveat = f"Watershed boundary unavailable this run ({e}) -- change detection not geofenced."
 
     step("Comparing T1 vs T2 for changes (Tier-1)...")
     change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"], watershed_mask=watershed_mask)

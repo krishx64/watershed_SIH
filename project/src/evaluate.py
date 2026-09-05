@@ -32,8 +32,8 @@ def confusion_matrix_from_arrays(y_true: np.ndarray, y_pred: np.ndarray, num_cla
 
 def metrics_from_confusion(cm: np.ndarray, class_names: dict) -> dict:
     """Per-class precision/recall/IoU/F1 + overall pixel accuracy + mean IoU.
-    Classes with zero true-label support (absent from ground truth) are
-    reported as 'no data in val set' rather than a misleading 0.0."""
+    Classes with zero true-label support (absent from the reference labels)
+    are reported as 'no data in val set' rather than a misleading 0.0."""
     num_classes = cm.shape[0]
     support = cm.sum(axis=1)  # true pixel count per class
     per_class = {}
@@ -71,12 +71,12 @@ def print_metrics_report(metrics: dict):
     print(f"Overall pixel accuracy: {metrics['pixel_accuracy']*100:.1f}%")
     print(f"Mean IoU (over classes present in val set): {metrics['mean_iou']*100:.1f}%")
     if metrics["classes_absent_from_val_set"]:
-        print(f"NOTE: absent from val set (no ground truth to check): "
+        print(f"NOTE: absent from val set (no reference labels to check against): "
               f"{', '.join(metrics['classes_absent_from_val_set'])}")
     print(f"\n{'Class':<38}{'Support':>9}{'Precision':>11}{'Recall':>9}{'IoU':>7}{'F1':>7}")
     for name, v in metrics["per_class"].items():
         if v["support"] == 0:
-            print(f"{name:<38}{'0':>9}{'  -- no ground truth in val set --':>28}")
+            print(f"{name:<38}{'0':>9}{'  -- no reference labels in val set --':>28}")
         else:
             print(f"{name:<38}{v['support']:>9}{v['precision']:>11.3f}{v['recall']:>9.3f}"
                   f"{v['iou']:>7.3f}{v['f1']:>7.3f}")

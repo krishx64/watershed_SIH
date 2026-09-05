@@ -140,7 +140,11 @@ needs the user's manual registration.
   adding, against real downloaded data: 48.9% water in the actual tiled
   labels (398,139 of 814,494 pixels), matching the ground-truth check
   almost exactly, plus 648 real training tiles generated successfully.
-  Not yet retrained/re-evaluated — that's the next Colab run.
+  Retrained and evaluated — see section 8, items 7-8 for two real bugs
+  caught while validating this (a split-leakage fix and a Kadwanchi
+  data-coverage fix), and section 9 for the real per-class results (mean
+  IoU 54.1%, water IoU 83.4% — a retrain against the coverage fix is the
+  logical next step, needs Colab GPU time).
 
 AOI is set in `project/src/config.py` (`AOI_NAME`, `AOI_CENTER_LAT/LON`,
 `AOI_BBOX`, `WORLDCOVER_TILE`) and mirrored in the Colab notebook's Config
@@ -517,7 +521,72 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
    Fixed in both `src/*.py` and the notebook generator (two mirrored
    `predict_class_map`/`render_lulc_map`/`compute_health_score` copies —
    the full-pipeline cell and the load-checkpoint-and-demo cell).
-7. **Model 2 (Siamese change U-Net) wired into the app, output looked like
+7. **Train/val split had two forms of leakage (not caught until deliberately
+   re-checking the evaluation methodology before trusting its numbers).**
+   `tiling.py`'s original split shuffled every *individual augmented file*
+   (8 rotated/flipped copies per base patch) and took a random 15% —
+   two problems: (a) a patch's own rotated/flipped copies could land on
+   both sides of the split, so val performance partly measured recognizing
+   the same ground under a different flip, not real generalization; (b)
+   the shuffle was global and random, so spatially adjacent, overlapping
+   patches (stride < patch size) frequently ended up on both sides too,
+   which are highly correlated and leak the same way. Neither the audit
+   documents' claim of an existing "region-level split" nor
+   `documentation.md` itself had ever actually described this correctly —
+   checked directly against the real `tiling.py` code, not assumed. Fixed:
+   the split decision is now made per base patch (before augmentation, so
+   all 8 copies of a patch always share one split) and per AOI+date via a
+   contiguous spatial block (the highest-row patches held out as val),
+   not a random shuffle — every AOI still appears in both train and val,
+   just via a real spatial separation instead of an interleaved shuffle.
+   Verified after the fix: re-tiled real data, confirmed 0/264 base patches
+   had augmented copies split across train and val, and every AOI/date
+   still had both a train and val share. Fixed in both `tiling.py` and the
+   notebook generator. Re-evaluating the existing checkpoint (still trained
+   under the old split, since retraining needs Colab GPU time) against the
+   corrected val set gave real, leak-free numbers — see section 9.
+8. **`clip_scene_to_stack` silently truncated rasters when the matched
+   scene's footprint didn't fully cover the AOI -- caught on Kadwanchi's
+   own primary AOI, not an edge case.** Discovered while building the
+   intervention registry's `latlon_to_pixel`: a round-trip test on
+   Kadwanchi's own `AOI_CENTER_LAT/LON` mapped nowhere near the grid center
+   (row 118 of 575, not ~287). Traced (not guessed) to two compounding
+   bugs:
+   - `clip_scene_to_stack` used `rio_mask(..., crop=True)`, which crops to
+     the *intersection* of the requested geometry and the source scene's
+     actual extent -- when the matched scene doesn't fully cover the
+     bbox, the output array itself comes back SMALLER than requested,
+     not full-sized with nodata pixels inside it (unlike the earlier
+     Donimalai case in item 6, where the array was full-sized and the gap
+     showed up as real zero-valued pixels). Nothing downstream could
+     detect a shape mismatch, since the array was just quietly the wrong
+     size. Confirmed directly: the matched T1 scene's real 4326 bounds
+     topped out at 19.894°N, 0.030° (~3.3km) short of `AOI_BBOX`'s
+     19.924°N edge.
+   - `search_scene` sorted candidates by cloud cover only, with no
+     coverage check -- so even though a same-cloud-cover (0%),
+     full-bbox-coverage alternative (`S2B_43QEC_20200226_1_L2A`) existed
+     in the very same search window, it was never considered.
+   Fixed both: `clip_scene_to_stack` now reprojects each band into a
+   destination array pre-sized to the FULL requested bbox (same CRS, so
+   this is a resample/pad, not a real reprojection) -- any genuinely
+   uncovered area now falls out as legitimate nodata, handled correctly
+   everywhere downstream via the existing `NODATA_CLASS` sentinel (item 6),
+   instead of silently shrinking the array. `search_scene` now prefers
+   full-coverage candidates when any exist in the window, falling back to
+   the lowest-cloud partial match (with a printed warning) only when none
+   do. Verified against real data at every step: before the fix, Kadwanchi
+   showed 40.7% nodata once the truncation itself was fixed (i.e., the
+   true extent of a real, pre-existing coverage gap that had been silently
+   hidden by the array simply being smaller); after both fixes, Kadwanchi
+   fetches 0% nodata (switched to the full-coverage `43QEC` tile), and the
+   `latlon_to_pixel` round-trip lands the AOI center pixel-exact at the
+   grid center. Kadwanchi's cached local T1/T2 rasters and mask files were
+   also stale from an earlier, smaller AOI_BBOX (575x799, ~5.8km tall) --
+   refreshed to the current 9km bbox (912x847) as part of verifying this
+   fix, which is also what surfaced the coverage gap in the first place.
+   Fixed in both `data_download.py` and the notebook generator.
+9. **Model 2 (Siamese change U-Net) wired into the app, output looked like
    noise instead of the clean blobs Tier-1 produces.** Diagnosed against
    real data (Kadwanchi, Model 2's own training AOI), not guessed — turned
    out to be two separate problems:
@@ -547,8 +616,98 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
 
 ## 9. Known limitations (current state, be honest about these)
 
-- **Resolved as of the v3 multi-AOI pool**: Model 1 now scores IoU > 0.46
-  on all 7 classes (mean IoU 65.9%, pixel accuracy 81.2% — see section 5).
+- **Real per-class numbers, evaluated on the FULLY corrected Kadwanchi
+  extent (section 8, items 7 and 8) — supersedes an earlier, premature
+  68.2%/94.3%-water report that turned out to be based on the
+  still-truncated Kadwanchi data**: mean IoU **54.1%**, pixel accuracy
+  **80.8%**. Per-class IoU: water 83.4%, dense vegetation 73.9%,
+  agriculture 71.6%, sparse vegetation 52.0%, barren 43.4%, built-up 35.4%,
+  fallow 19.0%. Confusion matrix visually inspected, not just the printed
+  numbers trusted (`outputs/model1_confusion_matrix_corrected_split.png`):
+  fallow's errors are structurally sensible (mostly confused with
+  agriculture and sparse vegetation, which it's genuinely spectrally
+  similar to — not a broken pipeline), matching this project's own
+  long-documented history of fallow/barren being persistently hard classes
+  (section 6a).
+  **Why this dropped from the earlier 68.2%/94.3% report, not just a
+  different random split**: item 8's fix corrected Kadwanchi's cached data
+  from a truncated ~5.8km-tall extent to the real, full 9km `AOI_BBOX` —
+  and since Colab training almost certainly fetched data through the same
+  (now-fixed) buggy `clip_scene_to_stack`, the currently-deployed checkpoint
+  likely never actually trained on roughly a third of Kadwanchi's intended
+  area at all. The new, harder tiles from that previously-missing region
+  are genuinely out-of-distribution for it — this number is real and
+  honest, not a regression to explain away. **Next step: retrain in Colab**
+  against the now-correctly-covering tile set (needs GPU time, can't be
+  done locally) before quoting an updated figure.
+  Water remains the strongest class by far (precision 98.6%) after being a
+  near-total failure (IoU 0.000) before the AOI enlargement and Jayakwadi
+  Dam addition. Built-up and fallow remain the weakest (smallest val-set
+  support — 84,352 and 26,240 px respectively, vs. water's 1,277,240) and
+  are the most likely to improve most from the coverage-gap retrain above.
+  **Update — the retrain against the coverage fix landed, and it was worse,
+  not better**: mean IoU dropped to 48.1%, and Fallow collapsed completely
+  (precision/recall/IoU all exactly 0.000). Root-caused, not shrugged off:
+  `model1_unet.py`'s loss (`DiceLoss + CrossEntropyLoss`, no per-class
+  weighting) and checkpoint selection (lowest aggregate `val_loss`, no
+  per-class check) both structurally deprioritize a class that's ~0.25-0.6%
+  of pixels — it barely moves an aggregate loss either way, so there's
+  little gradient pressure to learn it, and a checkpoint where it's
+  completely collapsed can still "win" on overall loss. Fixed: `ce = nn.CrossEntropyLoss(weight=class_weights)`
+  with real, data-computed median-frequency-balanced weights
+  (`compute_class_weights`, scans the actual training tiles — Fallow came
+  out at 23.8x, Water at 1.0x baseline) instead of plain inverse-frequency
+  (which would have swung to ~150x and likely destabilized training).
+  Checkpoint selection now uses mean IoU (computed from a confusion matrix
+  `run_epoch` already accumulates during the val pass, no extra forward
+  pass) instead of aggregate `val_loss`. Smoke-tested locally (2 epochs,
+  real GPU, real data) before trusting it: Fallow's recall went from
+  0.000 to 0.589 immediately — precision is still low this early (expected,
+  frozen-encoder phase, not comparable to a full 25-epoch run), but the
+  mechanism is confirmed working, not just "should work." Fixed in both
+  `model1_unet.py` and the notebook generator (which needed its evaluation-
+  helper cell moved earlier, since training now needs `metrics_from_confusion`
+  per-epoch, not just in the final report — verified with a precise
+  definition-before-use check across cells, not just per-cell syntax).
+  **Update — the fresh Colab retrain against the fix landed, and the
+  collapse is gone**: mean IoU **49.1%**, pixel accuracy **78.2%**. Per-class
+  IoU: water 82.5%, dense vegetation 66.8%, agriculture 71.2%, sparse
+  vegetation 49.1%, barren 35.9%, built-up 30.4%, **fallow 7.5%** (precision
+  0.144, recall 0.135) — up from exactly 0.000/0.000/0.000. The fix did what
+  it was meant to: it stopped the total collapse, it didn't make fallow an
+  easy class. Fallow remains by far the weakest class, consistent with this
+  project's long-documented history of fallow/barren being genuinely
+  hard, spectrally-confusable classes (section 6a) — not a sign the fix is
+  incomplete. Mean IoU only ticking up one point from the broken run's 48.1%
+  undersells the change: built-up in particular is a real gain (IoU 30.4%,
+  was near-zero), and pixel accuracy/per-class precision-recall are visibly
+  healthier across the board than a run with a fully dead class. This is now
+  confirmed at full-training scale, not just the 2-epoch local smoke test.
+  **Update — the same fix applied to Model 2** (`model2_change.py`), for
+  consistency: Model 2's loss and checkpoint selection had the identical
+  structural bug (unweighted `DiceLoss + CrossEntropyLoss`, best checkpoint
+  picked by lowest aggregate `val_loss`) — a real risk here too, since
+  "No change" dominates a weak change-label map even more heavily than any
+  single LULC class dominates Model 1's labels. Added
+  `compute_change_class_weights` (same median-frequency balancing) and
+  switched checkpoint selection to mean IoU over the 5 change classes, with
+  the confusion matrix accumulated inline during the existing val pass — no
+  extra forward pass. Mirrored into the notebook generator's Model 2 cells
+  and re-validated (syntax + definition-before-use check across the
+  reordered/new cells). **Smoke-tested locally (2 epochs, real GPU) — but
+  with an important caveat, unlike Model 1's smoke test**: the local
+  Kadwanchi T1 and T2 masks used for this test were both rasterized from
+  the *same* single WorldCover file earlier this session (a stand-in for
+  missing local mask files, not a live two-date fetch), so `mask_t1 ==
+  mask_t2` exactly and the weak change-label pipeline produces 100% "No
+  change" by construction — the printed weights table showed `No change:
+  weight=1.000` and all four real change classes at `count=0, weight=0.000`.
+  The smoke test confirms the code runs correctly end-to-end (no crash,
+  correct shapes, weights print, checkpoint saves and improves — mean IoU
+  0.508 → 0.568 over 2 epochs) but, because the local test data has zero
+  real change signal, it does **not** demonstrate the fix's real-world
+  impact the way Model 1's Fallow-recall result did. That will only be
+  visible from a real Colab retrain against genuine two-date imagery.
   Previously dense vegetation and barren land were near-total failures
   (IoU 0.004 / 0.000); pooling in Tamhini Ghat and Donimalai fixed both
   without regressing the other classes. The earlier "small, imbalanced

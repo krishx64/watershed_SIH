@@ -176,7 +176,7 @@ text-transform:uppercase;">{label}</div>
 </div>"""
 
 
-def render_gauge_fig(value: float, label: str = "HEALTH INDEX"):
+def render_gauge_fig(value: float, label: str = "CONDITION SCORE"):
     """Matplotlib donut gauge, styled as a flat official seal -- rendered via st.pyplot(),
     not raw SVG through st.html(). The hand-built SVG version silently failed to render
     (twice, through two different theme rewrites) despite testing correctly as a string in
@@ -277,6 +277,6 @@ Pick a location to begin
 <p style="color:{INK_MUTED}; margin:8px 0 0 0; font-size:14px;">
 Choose one of the three trained sites above, or search/enter coordinates for anywhere else.
 The model fetches live satellite imagery for that spot and runs the full analysis &mdash;
-land cover, change detection, health score, and alerts &mdash; usually in 20&ndash;60 seconds.
+land cover, change detection, condition score, and alerts &mdash; usually in 20&ndash;60 seconds.
 </p>
 </div>"""

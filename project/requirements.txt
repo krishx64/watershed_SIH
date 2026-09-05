@@ -53,6 +53,16 @@ boto3==1.43.86
 
 segmentation_models_pytorch==0.5.0
 
+# Real watershed catchment/drainage delineation from DEM data (Copernicus
+# GLO-30 via src/dem_fetch.py). Pulls in numba/llvmlite as a REQUIRED
+# dependency (not optional, despite pysheds' own docs suggesting otherwise --
+# checked via a real `pip install`, not assumed). pysheds 0.5 (latest on
+# PyPI, checked) calls the now-removed `np.in1d`; src/watershed_delineation.py
+# shims it to `np.isin` (numpy's own official replacement) before import --
+# same class of fix as the segmentation-models-pytorch mismatches above, see
+# documentation.md section 8.
+pysheds==0.5
+
 streamlit==1.63.0
 streamlit-folium==0.27.4
 folium==0.20.0

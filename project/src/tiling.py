@@ -37,6 +37,11 @@ def augmentations(img, mask):
 
 
 def tile_pair(aoi_name, date_tag):
+    """Returns a list of base-patch records: {"y", "x", "files": [8 augmented filenames]}.
+    Deliberately keyed by base patch, not by individual augmented file -- the
+    train/val split decision in main() is made per base patch, BEFORE looking
+    at augmentations, specifically so that a patch and its own rotated/flipped
+    copies always land in the same split (see main()'s docstring for why)."""
     stack_path = DATA_PROCESSED / f"{aoi_name}_{date_tag}_stack6.tif"
     mask_path = DATA_PROCESSED / f"{aoi_name}_{date_tag}_mask.tif"
 
@@ -46,7 +51,7 @@ def tile_pair(aoi_name, date_tag):
         msk = m.read(1)  # (H, W)
 
     C, H, W = img.shape
-    records = []
+    patch_records = []
     patch_id = 0
 
     for y in range(0, H - PATCH_SIZE + 1, STRIDE):
@@ -58,38 +63,68 @@ def tile_pair(aoi_name, date_tag):
             if nodata_frac > MAX_NODATA_FRACTION:
                 continue
 
+            files = []
             for aug_idx, (img_a, msk_a) in enumerate(augmentations(img_p, msk_p)):
                 fname = f"{aoi_name}_{date_tag}_p{patch_id:04d}_a{aug_idx}.npz"
                 np.savez_compressed(TILES_DIR / fname, image=img_a.astype("float32"), mask=msk_a.astype("uint8"))
-                records.append(fname)
+                files.append(fname)
+            patch_records.append({"y": y, "x": x, "files": files})
             patch_id += 1
 
-    print(f"{date_tag}: {patch_id} base patches -> {len(records)} tiles (with augmentation)")
-    return records
+    n_tiles = sum(len(r["files"]) for r in patch_records)
+    print(f"{date_tag}: {patch_id} base patches -> {n_tiles} tiles (with augmentation)")
+    return patch_records
 
 
 def main():
-    all_records = []
+    """Train/val split, done properly:
+    1. Per base patch, not per augmented file -- a patch's 8 rotated/flipped
+       copies always land in the SAME split. The original version shuffled and
+       split individual augmented files independently, so e.g. a 0-degree crop
+       could be "train" while its 90-degree rotation of the exact same ground
+       was "val" -- val performance was partly measuring memorization of
+       training pixels seen under a different flip, not real generalization.
+    2. Per AOI+date, via a spatial block (the highest-y rows of that scene's
+       patch grid), not a random shuffle across the whole pooled patch list --
+       random shuffling put spatially ADJACENT (overlapping, since
+       STRIDE < PATCH_SIZE) patches on both sides of the split, which are
+       highly correlated and leak information the same way. A contiguous
+       spatial band holds out a real, separate piece of ground instead.
+    Doing the split per AOI+date (not one global block across all AOIs) keeps
+    every AOI represented in both train and val, so val still reflects the
+    full class diversity the multi-AOI pool was built for (documentation.md
+    section 5) -- the fix is about HOW each AOI's patches get split, not
+    which AOIs are eligible for validation.
+    """
+    all_files = []  # (filename, split)
+
     for job in AOI_JOBS:
         for date_tag in job["dates"]:
-            all_records.extend(tile_pair(job["name"], date_tag))
-
-    rng = np.random.default_rng(42)
-    rng.shuffle(all_records)
-    n_val = max(1, int(len(all_records) * VAL_FRACTION))
-    val_set = set(all_records[:n_val])
+            patch_records = tile_pair(job["name"], date_tag)
+            if not patch_records:
+                continue
+            # Spatial block holdout: sort by row then col, hold out the last
+            # VAL_FRACTION of rows (by patch count) as a contiguous band.
+            patch_records.sort(key=lambda r: (r["y"], r["x"]))
+            n_val_patches = max(1, int(len(patch_records) * VAL_FRACTION))
+            val_patches = patch_records[-n_val_patches:] if len(patch_records) > 1 else []
+            val_ys = {r["y"] for r in val_patches}
+            for r in patch_records:
+                split = "val" if r["y"] in val_ys else "train"
+                for fname in r["files"]:
+                    all_files.append((fname, split))
 
     manifest_path = DATA_PROCESSED / "manifest.csv"
     with open(manifest_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["filename", "split"])
-        for fname in all_records:
-            split = "val" if fname in val_set else "train"
+        for fname, split in all_files:
             writer.writerow([fname, split])
 
-    print(f"\nTotal tiles: {len(all_records)}  (train={len(all_records) - n_val}, val={n_val})")
+    n_val = sum(1 for _, split in all_files if split == "val")
+    print(f"\nTotal tiles: {len(all_files)}  (train={len(all_files) - n_val}, val={n_val})")
     print(f"Manifest: {manifest_path}")
-    if len(all_records) < 200:
+    if len(all_files) < 200:
         print("WARNING: small tile count for a placeholder AOI — expect this to grow a lot once "
               "you swap in the real watershed AOI (bigger area = more tiles) or add more scene dates.")
 

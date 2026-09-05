@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 import rasterio
 from rasterio.mask import mask as rio_mask
-from rasterio.warp import transform_bounds
+from rasterio.warp import transform_bounds, reproject, Resampling
 from shapely.geometry import box, mapping
 from pystac_client import Client
 
@@ -39,8 +39,26 @@ DATE_WINDOWS = {
 }
 
 
+def _fully_covers(item_bbox, bbox) -> bool:
+    minx, miny, maxx, maxy = bbox
+    ib0, ib1, ib2, ib3 = item_bbox
+    return ib0 <= minx and ib1 <= miny and ib2 >= maxx and ib3 >= maxy
+
+
 def search_scene(bbox, date_tag, max_cloud=20, limit=10):
-    """Find the lowest-cloud scene over bbox in the window for this date tag."""
+    """Find the lowest-cloud scene over bbox in the window for this date tag,
+    preferring one whose own footprint fully covers the requested bbox.
+
+    Real bug this guards against: the original version sorted candidates by
+    cloud cover ONLY, with no coverage check, and a scene's footprint only
+    partially overlapping the AOI is a real, observed case -- confirmed for
+    Kadwanchi's own primary AOI, where the plain lowest-cloud pick left 40.7%
+    of the requested bbox uncovered even though a same-cloud-cover,
+    full-coverage alternative (S2B_43QEC_20200226_1_L2A) existed in the very
+    same search window and was simply never considered. Full-coverage
+    candidates (if any exist in the window) are preferred over partial ones
+    regardless of a small cloud-cover difference; only cloud cover breaks
+    ties within each group."""
     catalog = Client.open(STAC_API_URL)
     search = catalog.search(
         collections=[STAC_COLLECTION],
@@ -50,37 +68,75 @@ def search_scene(bbox, date_tag, max_cloud=20, limit=10):
         limit=limit,
     )
     items = list(search.items())
-    items.sort(key=lambda it: it.properties.get("eo:cloud_cover", 100))
     if not items:
         raise RuntimeError(
             f"No low-cloud Sentinel-2 scene found for bbox={bbox}, date_tag={date_tag} "
             "-- widen the date range or cloud threshold."
         )
-    return items[0]
+
+    full_coverage = [it for it in items if _fully_covers(it.bbox, bbox)]
+    pool = full_coverage if full_coverage else items
+    if not full_coverage:
+        print(f"WARNING: no scene in this window fully covers bbox={bbox} -- "
+              f"picking the lowest-cloud partial-coverage match; expect some "
+              f"nodata pixels (handled downstream via NODATA_CLASS).")
+    pool.sort(key=lambda it: it.properties.get("eo:cloud_cover", 100))
+    return pool[0]
 
 
 def clip_scene_to_stack(item, bbox, out_path):
-    """Read R,G,B,NIR bands (10m) for one STAC item, clip to bbox, stack, save."""
+    """Read R,G,B,NIR bands (10m) for one STAC item, clip to bbox, stack, save.
+
+    Always produces an array sized to the FULL requested bbox, regardless of
+    how much of it the matched scene's own footprint actually covers. Real
+    bug this guards against: search_scene picks the lowest-cloud match
+    without checking full-bbox coverage, and a scene whose footprint only
+    partially overlaps the AOI is a real, observed case (confirmed for
+    Kadwanchi's own primary AOI: the matched T1 scene's northern edge fell
+    ~3.3km short of AOI_BBOX's requested northern edge). The previous
+    rio_mask(..., crop=True) approach silently returned a SMALLER array in
+    that case -- not nodata pixels within a correctly-sized array, an
+    actually truncated shape, which nothing downstream could detect (unlike
+    the NODATA_CLASS sentinel, which only catches missing coverage that
+    shows up as real zero-valued pixels inside an otherwise correctly-sized
+    read). Reprojecting into a pre-sized destination array (same CRS, so
+    this is a resample/pad, not a real reprojection) makes any uncovered
+    area fall out as legitimate zero/nodata pixels instead, which
+    NODATA_CLASS already handles correctly everywhere downstream."""
     band_arrays = []
     profile = None
+    target_transform = target_h = target_w = None
+
     for band in S2_BANDS:
         href = item.assets[band].href
         with rasterio.open(href) as src:
-            aoi_bounds = transform_bounds("EPSG:4326", src.crs, *bbox)
-            geom = [mapping(box(*aoi_bounds))]
-            data, transform = rio_mask(src, geom, crop=True)
-            if profile is None:
+            if target_transform is None:
+                minx, miny, maxx, maxy = transform_bounds("EPSG:4326", src.crs, *bbox)
+                res = src.res[0]
+                target_w = max(1, round((maxx - minx) / res))
+                target_h = max(1, round((maxy - miny) / res))
+                target_transform = rasterio.transform.from_origin(minx, maxy, res, res)
                 profile = src.profile.copy()
                 profile.update(
-                    height=data.shape[1], width=data.shape[2],
-                    transform=transform, count=len(S2_BANDS), dtype="uint16",
+                    height=target_h, width=target_w, transform=target_transform,
+                    count=len(S2_BANDS), dtype="uint16",
                 )
-            band_arrays.append(data[0])
+
+            band_data = np.zeros((target_h, target_w), dtype="uint16")
+            reproject(
+                source=rasterio.band(src, 1), destination=band_data,
+                src_transform=src.transform, src_crs=src.crs,
+                dst_transform=target_transform, dst_crs=src.crs,
+                resampling=Resampling.nearest,
+            )
+            band_arrays.append(band_data)
 
     stack = np.stack(band_arrays, axis=0)
     atomic_raster_write(out_path, stack, profile, descriptions=tuple(S2_BANDS))
+    n_nodata = int(np.all(stack == 0, axis=0).sum())
+    coverage_note = f"  ({n_nodata} nodata px, {100*n_nodata/(target_h*target_w):.1f}%)" if n_nodata else ""
     print(f"Saved {out_path}  shape={stack.shape}  date={item.datetime.date()}  "
-          f"cloud={item.properties.get('eo:cloud_cover'):.1f}%")
+          f"cloud={item.properties.get('eo:cloud_cover'):.1f}%{coverage_note}")
 
 
 def download_worldcover(bbox, worldcover_tile, out_path):

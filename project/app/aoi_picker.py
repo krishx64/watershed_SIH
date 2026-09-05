@@ -32,6 +32,7 @@ from preprocessing import build_6channel_stack
 from inference_demo import predict_class_map, predict_change_map
 from tier1_fallback import run_tier1
 from recommendation_engine import compute_health_score, generate_alerts, ndvi_trend
+from watershed_delineation import get_watershed_context
 
 LIVE_DIR = DATA_PROCESSED / "live"
 LIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -107,8 +108,26 @@ def run_pipeline(bbox, label: str, model1, model2, device, on_step=None):
         class_map, img, profile = predict_class_map(model1, stack_path, device)
         results[date_tag] = {"class_map": class_map, "img": img, "profile": profile, "date": item.datetime.date()}
 
+    # Real watershed boundary + drainage network, DEM-derived (see
+    # watershed_delineation.py) -- activates tier1_fallback.geofence_mask,
+    # which existed unused (always called with watershed_mask=None) since
+    # early in the project. DEM fetch is a new network dependency on top of
+    # the Sentinel-2 fetches above; a transient failure here shouldn't sink
+    # the whole AOI analysis, so it degrades gracefully to the pre-existing
+    # ungeofenced behavior rather than raising.
+    step("Delineating watershed boundary & drainage network (DEM)...")
+    watershed_mask = drainage_network = pour_point = watershed_caveat = None
+    try:
+        watershed_context = get_watershed_context(bbox, results["T2"]["profile"])
+        watershed_mask = watershed_context["watershed_mask"]
+        drainage_network = watershed_context["drainage_network"]
+        pour_point = watershed_context["pour_point"]
+        watershed_caveat = watershed_context["caveat"]
+    except Exception as e:
+        watershed_caveat = f"Watershed boundary unavailable this run ({e}) -- change detection not geofenced."
+
     step("Comparing T1 vs T2 for changes (Tier-1)...")
-    change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"])
+    change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"], watershed_mask=watershed_mask)
 
     change_map_model2 = None
     if model2 is not None:
@@ -120,7 +139,8 @@ def run_pipeline(bbox, label: str, model1, model2, device, on_step=None):
     trend = ndvi_trend(results["T1"]["img"], results["T2"]["img"])
     step("Generating alerts & recommendations...")
     alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
-    return results, change_map, change_map_model2, health, trend, alerts
+    return (results, change_map, change_map_model2, health, trend, alerts,
+            watershed_mask, drainage_network, pour_point, watershed_caveat)
 
 
 def _set_active_aoi(key, display_name, lat, lon, trained, model1, model2, device):
@@ -130,7 +150,8 @@ def _set_active_aoi(key, display_name, lat, lon, trained, model1, model2, device
             status.update(label=msg)
             st.write(f":gray[{msg}]")
 
-        results, change_map, change_map_model2, health, trend, alerts = run_pipeline(
+        (results, change_map, change_map_model2, health, trend, alerts,
+         watershed_mask, drainage_network, pour_point, watershed_caveat) = run_pipeline(
             bbox, key, model1, model2, device, on_step=on_step
         )
         status.update(label=f"Done — {display_name} ready", state="complete", expanded=False)
@@ -144,6 +165,8 @@ def _set_active_aoi(key, display_name, lat, lon, trained, model1, model2, device
         # docstring for why Model 2 doesn't get to override the trusted numbers yet.
         "change_map": change_map, "change_map_model2": change_map_model2,
         "health": health, "trend": trend, "alerts": alerts,
+        "watershed_mask": watershed_mask, "drainage_network": drainage_network,
+        "pour_point": pour_point, "watershed_caveat": watershed_caveat,
     }
 
 

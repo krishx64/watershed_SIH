@@ -1,0 +1,177 @@
+{
+  "key": "kadwanchi_watershed",
+  "bbox_wgs84": {
+    "west": 75.9503111269066,
+    "south": 19.841594705637423,
+    "east": 76.03172293839957,
+    "north": 19.92444820985194
+  },
+  "class_names": {
+    "0": "Water body / conservation structure",
+    "1": "Dense vegetation / forest",
+    "2": "Agriculture / cropland",
+    "3": "Sparse vegetation / grassland",
+    "4": "Barren / degraded land",
+    "5": "Built-up / settlement",
+    "6": "Fallow / bare agricultural land",
+    "255": "No data / no coverage"
+  },
+  "class_colors": {
+    "0": [
+      66,
+      135,
+      245
+    ],
+    "1": [
+      34,
+      102,
+      51
+    ],
+    "2": [
+      154,
+      205,
+      50
+    ],
+    "3": [
+      189,
+      183,
+      107
+    ],
+    "4": [
+      160,
+      120,
+      90
+    ],
+    "5": [
+      200,
+      30,
+      30
+    ],
+    "6": [
+      222,
+      184,
+      135
+    ],
+    "255": [
+      225,
+      225,
+      225
+    ]
+  },
+  "has_change_pair": true,
+  "health_score": 66.2,
+  "class_breakdown": {
+    "0": {
+      "name": "Water body / conservation structure",
+      "pixels": 13990,
+      "hectares": 139.9
+    },
+    "1": {
+      "name": "Dense vegetation / forest",
+      "pixels": 4769,
+      "hectares": 47.69
+    },
+    "2": {
+      "name": "Agriculture / cropland",
+      "pixels": 604386,
+      "hectares": 6043.86
+    },
+    "3": {
+      "name": "Sparse vegetation / grassland",
+      "pixels": 116874,
+      "hectares": 1168.74
+    },
+    "4": {
+      "name": "Barren / degraded land",
+      "pixels": 6538,
+      "hectares": 65.38
+    },
+    "5": {
+      "name": "Built-up / settlement",
+      "pixels": 25907,
+      "hectares": 259.07
+    },
+    "6": {
+      "name": "Fallow / bare agricultural land",
+      "pixels": 0,
+      "hectares": 0.0
+    }
+  },
+  "change_class_names": {
+    "0": "No change",
+    "1": "New water/conservation structure",
+    "2": "New construction/built-up",
+    "3": "Vegetation/water loss (degradation)",
+    "4": "Vegetation gain"
+  },
+  "change_class_colors": {
+    "0": [
+      230,
+      230,
+      230
+    ],
+    "1": [
+      43,
+      110,
+      130
+    ],
+    "2": [
+      162,
+      59,
+      46
+    ],
+    "3": [
+      166,
+      106,
+      22
+    ],
+    "4": [
+      78,
+      122,
+      61
+    ]
+  },
+  "change_summary": {
+    "No change": {
+      "pixels": 702952,
+      "hectares": 7029.52
+    },
+    "New water/conservation structure": {
+      "pixels": 1185,
+      "hectares": 11.85
+    },
+    "New construction/built-up": {
+      "pixels": 8273,
+      "hectares": 82.73
+    },
+    "Vegetation/water loss (degradation)": {
+      "pixels": 78,
+      "hectares": 0.78
+    },
+    "Vegetation gain": {
+      "pixels": 59976,
+      "hectares": 599.76
+    }
+  },
+  "ndvi_trend": -0.0522,
+  "alerts": [
+    {
+      "severity": "ALERT",
+      "rule": "new_construction",
+      "message": "Possible unauthorized construction detected \u2014 recommend field verification.",
+      "area_ha": 82.73
+    },
+    {
+      "severity": "RECOMMEND",
+      "rule": "degradation_intervention",
+      "message": "Vegetation/water loss with declining NDVI trend \u2014 soil/water conservation structure recommended in this zone.",
+      "area_ha": 0.78
+    },
+    {
+      "severity": "INFO",
+      "rule": "new_water_unverified",
+      "message": "New water body detected outside known project boundaries \u2014 worth a field check.",
+      "area_ha": 11.85
+    }
+  ]
+}

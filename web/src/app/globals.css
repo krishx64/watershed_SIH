@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+/* ---- Design tokens (Optimus-Delta monochrome base + watershed accent layer) ---- */
+:root {
+  --color-background: #f0f0f0;
+  --color-foreground: #141414;
+  --color-muted-foreground: #8a8a8a;
+
+  --color-sage: #4e7a3d;
+  --color-amber: #a66a16;
+  --color-danger: #a23b2e;
+  --color-teal: #2b6e82;
+  --color-navy: #1b3b6f;
+}
+
+@theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-muted-foreground: var(--color-muted-foreground);
+  --color-sage: var(--color-sage);
+  --color-amber: var(--color-amber);
+  --color-danger: var(--color-danger);
+  --color-teal: var(--color-teal);
+  --color-navy: var(--color-navy);
+
+  --font-display: var(--font-instrument-serif), serif;
+  --font-sans: var(--font-instrument-sans), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* ---- Hairline grid (hero background structure) ---- */
+.hairline-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-foreground) 8%, transparent) 0,
+      color-mix(in srgb, var(--color-foreground) 8%, transparent) 1px,
+      transparent 1px,
+      transparent 8.3333%
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-foreground) 8%, transparent) 0,
+      color-mix(in srgb, var(--color-foreground) 8%, transparent) 1px,
+      transparent 1px,
+      transparent 25%
+    );
+}
+
+/* ---- Hero character-by-character reveal ---- */
+@keyframes char-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-char-in {
+  animation: char-in 0.4s ease-out both;
+}
+
+/* ---- Generic fade-up entrance (headline blocks, subtext, rows) ---- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 1s ease-out both;
+}
+
+/* ---- Code terminal character reveal ---- */
+@keyframes code-char-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.code-char-reveal {
+  animation: code-char-reveal 0.1s ease-out both;
+}
+
+/* ---- Process step progress bar ---- */
+@keyframes progress-sweep {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.animate-progress {
+  animation: progress-sweep 5s linear forwards;
+}
+
+/* ---- Infinite horizontal marquee (two-child seamless loop) ---- */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+.animate-marquee-slow {
+  animation: marquee 45s linear infinite;
+}
+
+/* ---- Diagonal hatch overlay (dark "How It Works" section) ---- */
+.hatch-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 40px,
+    currentColor 40px,
+    currentColor 41px
+  );
+  opacity: 0.03;
+}
+
+/* ---- Footer dot-grid background ---- */
+.dot-grid-bg {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--color-foreground) 14%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ---- Pulse (live status dots) ---- */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}

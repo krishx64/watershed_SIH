@@ -25,13 +25,30 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 import segmentation_models_pytorch as smp
 
+import re
+
 from config import (
-    BATCH_SIZE, CHANGE_CLASS_NAMES, DATA_PROCESSED, IN_CHANNELS, LR, MODELS_DIR, NUM_EPOCHS,
+    BATCH_SIZE, CHANGE_CLASS_NAMES, DATA_PROCESSED, IN_CHANNELS, LR, MODELS_DIR, NODATA_CLASS,
+    NUM_EPOCHS,
 )
 from tier1_fallback import diff_to_change_map
 from evaluate import confusion_matrix_from_arrays, metrics_from_confusion
 
 NUM_CHANGE_CLASSES = 5
+
+# New tiling filenames embed grid position: {aoi}_{date}_yYYYYxXXXX_aA.npz
+# (see tiling.tile_pair). Old pXXXX sequential-counter names cannot be paired
+# by location -- they require re-tiling.
+_NEW_TILE_RE = re.compile(r"_y(\d+)x(\d+)_a(\d+)\.npz$")
+_OLD_TILE_RE = re.compile(r"_p\d+_a\d+\.npz$")
+
+
+def _parse_tile_key(path):
+    """Filename -> (y, x, aug_idx), or None if unparseable."""
+    m = _NEW_TILE_RE.search(path.name)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return None
 
 
 class SiameseChangeUNet(nn.Module):
@@ -51,7 +68,7 @@ class SiameseChangeUNet(nn.Module):
         self.head = base.segmentation_head
 
         if pretrained_encoder_ckpt is not None and pretrained_encoder_ckpt.exists():
-            ckpt = torch.load(pretrained_encoder_ckpt, map_location="cpu")
+            ckpt = torch.load(pretrained_encoder_ckpt, map_location="cpu", weights_only=True)
             state = {k.replace("encoder.", ""): v for k, v in ckpt["model_state"].items()
                      if k.startswith("encoder.")}
             result = self.encoder.load_state_dict(state, strict=False)
@@ -73,30 +90,49 @@ class SiameseChangeUNet(nn.Module):
 
 
 class WeakLabelChangeDataset(Dataset):
-    """Pairs up T1/T2 tiles at matching spatial patch index and derives weak
-    change labels on the fly from their (already-known) class masks via the
-    Tier-1 diff rule — no manual change-label annotation needed."""
+    """Pairs up T1/T2 tiles at matching spatial location and augmentation index,
+    and derives weak change labels on the fly from their (already-known) class
+    masks via the Tier-1 diff rule — no manual change-label annotation needed.
+
+    Pairing key is (y, x, aug_idx) parsed from the position-embedded filenames
+    (tiling.tile_pair), NOT a sequential patch counter: T1 and T2 drop
+    different patches to the nodata filter, so counter-based pairing silently
+    trains on different ground locations. All 8 augmentation copies are used,
+    always paired T1_a{i} with T2_a{i} of the same base patch.
+    Each item exposes .base_y/.base_x so the train/val split can be done as a
+    spatial block (same discipline as tiling.main), never a random shuffle."""
 
     def __init__(self, tiles_dir: Path, aoi_name: str):
         self.tiles_dir = tiles_dir
-        t1_files = sorted(tiles_dir.glob(f"{aoi_name}_T1_p*_a0.npz"))  # a0 = unaugmented, for stable pairing
+        t1_files = sorted(tiles_dir.glob(f"{aoi_name}_T1_*.npz"))
+        if any(_OLD_TILE_RE.search(p.name) for p in t1_files):
+            raise RuntimeError(
+                f"Old pXXXX tile names found in {tiles_dir} — re-run tiling.py first. "
+                "Counter-based names cannot be paired by location (see tiling.tile_pair)."
+            )
+        t1_by_key, t2_by_key = {}, {}
+        for p in t1_files:
+            k = _parse_tile_key(p)
+            if k is not None:
+                t1_by_key[k] = p
+        for p in sorted(tiles_dir.glob(f"{aoi_name}_T2_*.npz")):
+            k = _parse_tile_key(p)
+            if k is not None:
+                t2_by_key[k] = p
         self.pairs = []
-        for t1_path in t1_files:
-            t2_name = t1_path.name.replace("_T1_", "_T2_")
-            t2_path = tiles_dir / t2_name
-            if t2_path.exists():
-                self.pairs.append((t1_path, t2_path))
+        for k in sorted(set(t1_by_key) & set(t2_by_key)):
+            self.pairs.append((t1_by_key[k], t2_by_key[k], k[0], k[1]))  # (t1, t2, y, x)
         if not self.pairs:
             raise RuntimeError(
                 f"No matching T1/T2 tile pairs found in {tiles_dir} — run tiling.py first. "
-                "(Weak-label pairing needs same-AOI T1/T2 patches at the same grid index.)"
+                "(Weak-label pairing needs same-AOI T1/T2 patches at the same grid location.)"
             )
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        t1_path, t2_path = self.pairs[idx]
+        t1_path, t2_path, _, _ = self.pairs[idx]
         d1, d2 = np.load(t1_path), np.load(t2_path)
         img_t1, mask_t1 = d1["image"], d1["mask"]
         img_t2, mask_t2 = d2["image"], d2["mask"]
@@ -122,7 +158,12 @@ def compute_change_class_weights(dataset, num_classes: int) -> torch.Tensor:
     counts = np.zeros(num_classes, dtype="int64")
     for i in range(len(dataset)):
         _, _, label = dataset[i]
-        counts += np.bincount(label.numpy().ravel(), minlength=num_classes)
+        l = label.numpy().ravel()
+        l = l[l != NODATA_CLASS]
+        if l.size:
+            counts += np.bincount(l, minlength=num_classes)
+    if counts.sum() == 0:
+        raise RuntimeError("Empty change-label dataset — cannot compute class weights.")
     freq = counts / counts.sum()
     present = freq > 0
     median_freq = np.median(freq[present])
@@ -141,10 +182,23 @@ def main():
     tiles_dir = DATA_PROCESSED / "tiles"
     from config import AOI_NAME
     dataset = WeakLabelChangeDataset(tiles_dir, AOI_NAME)
-    n_val = max(1, int(len(dataset) * 0.15))
-    train_ds, val_ds = torch.utils.data.random_split(
-        dataset, [len(dataset) - n_val, n_val], generator=torch.Generator().manual_seed(42)
-    )
+    # Spatial-block split, per base location (all 8 aug copies of one (y,x)
+    # share one split) -- same discipline as tiling.main. Randomly shuffling
+    # individual pairs would put overlapping patches and same-ground flips on
+    # both sides (STRIDE < PATCH_SIZE), leaking exactly the way Model 1's old
+    # split did before its section-8.7 fix.
+    base_locs = sorted({(y, x) for _, _, y, x in dataset.pairs})
+    n_val_bases = max(1, int(len(base_locs) * 0.15))
+    val_bases = set(base_locs[-n_val_bases:]) if len(base_locs) > 1 else set()
+    # Hold out full y-rows (same rounding as tiling.main) so the val band is
+    # a contiguous piece of ground, not an interleaved selection.
+    val_ys = {y for y, _ in val_bases}
+    train_idx = [i for i, (_, _, y, _) in enumerate(dataset.pairs) if y not in val_ys]
+    val_idx = [i for i, (_, _, y, _) in enumerate(dataset.pairs) if y in val_ys]
+    if not val_idx:  # single-location fallback (matches tiling.main's len>1 guard)
+        val_idx, train_idx = [len(dataset.pairs) - 1], list(range(len(dataset.pairs) - 1))
+    from torch.utils.data import Subset
+    train_ds, val_ds = Subset(dataset, train_idx), Subset(dataset, val_idx)
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     print(f"Weak-label pairs: {len(dataset)}  (train={len(train_ds)}, val={len(val_ds)})")
@@ -153,8 +207,8 @@ def main():
     model = SiameseChangeUNet(pretrained_encoder_ckpt=model1_ckpt).to(device)
 
     class_weights = compute_change_class_weights(train_ds, NUM_CHANGE_CLASSES).to(device)
-    dice = smp.losses.DiceLoss(mode="multiclass")
-    ce = torch.nn.CrossEntropyLoss(weight=class_weights)
+    dice = smp.losses.DiceLoss(mode="multiclass", ignore_index=NODATA_CLASS)
+    ce = torch.nn.CrossEntropyLoss(weight=class_weights, ignore_index=NODATA_CLASS)
     loss_fn = lambda logits, target: dice(logits, target) + ce(logits, target)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))

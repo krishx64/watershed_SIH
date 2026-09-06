@@ -17,7 +17,7 @@ import torch
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-from config import BATCH_SIZE, CLASS_NAMES, IN_CHANNELS, LR, MODELS_DIR, NUM_CLASSES, NUM_EPOCHS, OUTPUTS_DIR
+from config import BATCH_SIZE, CLASS_NAMES, IN_CHANNELS, LR, MODELS_DIR, NODATA_CLASS, NUM_CLASSES, NUM_EPOCHS, OUTPUTS_DIR
 from dataset import WatershedTileDataset
 from evaluate import (
     confusion_matrix_from_arrays, evaluate_model, metrics_from_confusion,
@@ -65,7 +65,12 @@ def compute_class_weights(dataset, num_classes: int) -> torch.Tensor:
     counts = np.zeros(num_classes, dtype="int64")
     for i in range(len(dataset)):
         _, mask = dataset[i]
-        counts += np.bincount(mask.numpy().ravel(), minlength=num_classes)
+        m = mask.numpy().ravel()
+        m = m[m != NODATA_CLASS]  # no-reference-label pixels carry no training signal
+        if m.size:
+            counts += np.bincount(m, minlength=num_classes)
+    if counts.sum() == 0:
+        raise RuntimeError("Empty training-label set (all nodata) — cannot compute class weights.")
     freq = counts / counts.sum()
     present = freq > 0
     median_freq = np.median(freq[present])
@@ -117,11 +122,11 @@ def main():
     set_encoder_trainable(model, False)
 
     class_weights = compute_class_weights(train_ds, NUM_CLASSES).to(device)
-    dice = smp.losses.DiceLoss(mode="multiclass")
-    ce = torch.nn.CrossEntropyLoss(weight=class_weights)
+    dice = smp.losses.DiceLoss(mode="multiclass", ignore_index=NODATA_CLASS)
+    ce = torch.nn.CrossEntropyLoss(weight=class_weights, ignore_index=NODATA_CLASS)
     loss_fn = lambda logits, target: dice(logits, target) + ce(logits, target)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=LR)
     scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))
 
     # Checkpoint selection is by mean IoU, not aggregate val_loss. A rare
@@ -139,6 +144,10 @@ def main():
         if epoch == FREEZE_ENCODER_EPOCHS + 1:
             print("Unfreezing encoder.")
             set_encoder_trainable(model, True)
+            # Encoder params were excluded from the optimizer while frozen (no
+            # wasted updates or stale momentum) -- add them now, keeping the
+            # decoder's existing momentum state intact.
+            optimizer.add_param_group({"params": model.encoder.parameters()})
 
         t0 = time.time()
         train_loss, _ = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
@@ -162,7 +171,7 @@ def main():
     print(f"\nDone. Best val_mean_iou={best_mean_iou:.4f}. Checkpoint: {ckpt_path}")
 
     print("\n--- Accuracy report (best checkpoint, val set) ---")
-    model.load_state_dict(torch.load(ckpt_path, map_location=device)["model_state"])
+    model.load_state_dict(torch.load(ckpt_path, map_location=device, weights_only=True)["model_state"])
     cm = evaluate_model(model, val_loader, device, NUM_CLASSES)
     metrics = metrics_from_confusion(cm, CLASS_NAMES)
     print_metrics_report(metrics)

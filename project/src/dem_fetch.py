@@ -90,12 +90,12 @@ def fetch_dem_mosaic(bbox: tuple, cache_dir: Path = DEM_CACHE_DIR):
         with rasterio.open(tile_paths[0]) as src:
             elevation, transform, profile = src.read(), src.transform, src.profile.copy()
     else:
-        srcs = [rasterio.open(p) for p in tile_paths]
-        elevation, transform = rio_merge(srcs)
-        profile = srcs[0].profile.copy()
-        profile.update(height=elevation.shape[1], width=elevation.shape[2], transform=transform)
-        for s in srcs:
-            s.close()
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            srcs = [stack.enter_context(rasterio.open(p)) for p in tile_paths]
+            elevation, transform = rio_merge(srcs)
+            profile = srcs[0].profile.copy()
+            profile.update(height=elevation.shape[1], width=elevation.shape[2], transform=transform)
 
     # nodata=-9999 explicit: the source tiles declare no nodata value at all, so
     # rio_mask's crop=True (which rounds the output window to whole pixels,

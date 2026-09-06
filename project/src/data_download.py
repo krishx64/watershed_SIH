@@ -45,7 +45,7 @@ def _fully_covers(item_bbox, bbox) -> bool:
     return ib0 <= minx and ib1 <= miny and ib2 >= maxx and ib3 >= maxy
 
 
-def search_scene(bbox, date_tag, max_cloud=20, limit=10):
+def search_scene(bbox, date_tag, max_cloud=20, limit=30):
     """Find the lowest-cloud scene over bbox in the window for this date tag,
     preferring one whose own footprint fully covers the requested bbox.
 
@@ -128,6 +128,7 @@ def clip_scene_to_stack(item, bbox, out_path):
                 src_transform=src.transform, src_crs=src.crs,
                 dst_transform=target_transform, dst_crs=src.crs,
                 resampling=Resampling.nearest,
+                src_nodata=0, dst_nodata=0,
             )
             band_arrays.append(band_data)
 
@@ -140,15 +141,37 @@ def clip_scene_to_stack(item, bbox, out_path):
 
 
 def download_worldcover(bbox, worldcover_tile, out_path):
-    """Clip the ESA WorldCover COG straight to bbox via HTTP range reads."""
+    """Clip the ESA WorldCover COG straight to bbox via HTTP range reads.
+
+    Always produces an array sized to the FULL requested bbox, even if the
+    source tile's extent does not fully cover it. The previous
+    rio_mask(..., crop=True) approach silently returned a SMALLER array in
+    that case (same truncation class as the section-8.8 imagery bug) --
+    preprocessing then rasterized a too-small label grid and filled the
+    missing area with a default class. Reprojecting into a pre-sized
+    destination makes uncovered pixels explicit zeros (WorldCover's own
+    nodata value), which preprocessing maps to NODATA_CLASS."""
     vsi_url = f"/vsicurl/{worldcover_url_for_tile(worldcover_tile)}"
     with rasterio.open(vsi_url) as src:
-        geom = [mapping(box(*bbox))]  # WorldCover is already EPSG:4326
-        data, transform = rio_mask(src, geom, crop=True)
+        res_x, res_y = src.res
+        minx, miny, maxx, maxy = bbox
+        target_w = max(1, round((maxx - minx) / res_x))
+        target_h = max(1, round((maxy - miny) / res_y))
+        target_transform = rasterio.transform.from_origin(minx, maxy, res_x, res_y)
         profile = src.profile.copy()
-        profile.update(height=data.shape[1], width=data.shape[2], transform=transform)
+        profile.update(height=target_h, width=target_w, transform=target_transform)
+        data = np.zeros((1, target_h, target_w), dtype="uint8")
+        reproject(
+            source=rasterio.band(src, 1), destination=data[0],
+            src_transform=src.transform, src_crs=src.crs,
+            dst_transform=target_transform, dst_crs=src.crs,
+            resampling=Resampling.nearest,
+            src_nodata=0, dst_nodata=0,
+        )
     atomic_raster_write(out_path, data, profile)
-    print(f"Saved {out_path}  shape={data.shape}")
+    n_nodata = int((data[0] == 0).sum())
+    note = f"  ({n_nodata} nodata px, {100*n_nodata/data[0].size:.1f}%)" if n_nodata else ""
+    print(f"Saved {out_path}  shape={data.shape}{note}")
 
 
 def run_job(job):

@@ -41,7 +41,17 @@ def tile_pair(aoi_name, date_tag):
     Deliberately keyed by base patch, not by individual augmented file -- the
     train/val split decision in main() is made per base patch, BEFORE looking
     at augmentations, specifically so that a patch and its own rotated/flipped
-    copies always land in the same split (see main()'s docstring for why)."""
+    copies always land in the same split (see main()'s docstring for why).
+
+    Filenames embed the deterministic grid position (y{y:04d}x{x:04d}), NOT a
+    sequential patch counter. A sequential counter diverges between dates
+    whenever T1 and T2 drop different patches to the nodata filter (e.g. T1
+    keeps y=[0,96,192] as p0000/p0001/p0002 while T2 drops y=96 and numbers
+    y=192 as p0001) -- pairing T1_p0001 with T2_p0001 then silently trains on
+    different ground locations. Position-embedded names make the same (y,x)
+    the same filename on every date, so cross-date pairing by filename is
+    pairing by location. Requires re-tiling once after this change (old
+    pXXXX files are removed by main() below)."""
     stack_path = DATA_PROCESSED / f"{aoi_name}_{date_tag}_stack6.tif"
     mask_path = DATA_PROCESSED / f"{aoi_name}_{date_tag}_mask.tif"
 
@@ -52,7 +62,6 @@ def tile_pair(aoi_name, date_tag):
 
     C, H, W = img.shape
     patch_records = []
-    patch_id = 0
 
     for y in range(0, H - PATCH_SIZE + 1, STRIDE):
         for x in range(0, W - PATCH_SIZE + 1, STRIDE):
@@ -65,14 +74,23 @@ def tile_pair(aoi_name, date_tag):
 
             files = []
             for aug_idx, (img_a, msk_a) in enumerate(augmentations(img_p, msk_p)):
-                fname = f"{aoi_name}_{date_tag}_p{patch_id:04d}_a{aug_idx}.npz"
-                np.savez_compressed(TILES_DIR / fname, image=img_a.astype("float32"), mask=msk_a.astype("uint8"))
+                fname = f"{aoi_name}_{date_tag}_y{y:04d}x{x:04d}_a{aug_idx}.npz"
+                # Atomic .npz write (tmp + rename): same truncated-file class as
+                # config.atomic_raster_write guards for rasters. NOTE: must pass
+                # an open file object to savez, not the tmp path -- numpy
+                # appends ".npz" to string/Path names that don't end with it,
+                # so saving to "...npz.tmp" by path would actually create
+                # "...npz.tmp.npz" and the rename below would fail.
+                tmp_path = TILES_DIR / (fname + ".tmp")
+                final_path = TILES_DIR / fname
+                with open(tmp_path, "wb") as f:
+                    np.savez_compressed(f, image=img_a.astype("float32"), mask=msk_a.astype("uint8"))
+                tmp_path.replace(final_path)
                 files.append(fname)
             patch_records.append({"y": y, "x": x, "files": files})
-            patch_id += 1
 
     n_tiles = sum(len(r["files"]) for r in patch_records)
-    print(f"{date_tag}: {patch_id} base patches -> {n_tiles} tiles (with augmentation)")
+    print(f"{date_tag}: {len(patch_records)} base patches -> {n_tiles} tiles (with augmentation)")
     return patch_records
 
 
@@ -96,6 +114,11 @@ def main():
     section 5) -- the fix is about HOW each AOI's patches get split, not
     which AOIs are eligible for validation.
     """
+    # One-time migration: filenames used to be pXXXX (sequential counter, which
+    # diverged between dates -- see tile_pair docstring). Remove stale files so
+    # a mixed old/new tiles dir can never silently mispair.
+    for stale in TILES_DIR.glob("*_p[0-9][0-9][0-9][0-9]_a*.npz"):
+        stale.unlink()
     all_files = []  # (filename, split)
 
     for job in AOI_JOBS:

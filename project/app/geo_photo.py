@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import streamlit as st
 from PIL import Image, ExifTags
 
-from config import DATA_PROCESSED, CLASS_NAMES, CLASS_COLORS
+from config import DATA_PROCESSED, CLASS_NAMES, CLASS_COLORS, NODATA_CLASS
 from data_download import search_scene, clip_scene_to_stack
 from preprocessing import build_6channel_stack
 from inference_demo import predict_class_map
@@ -82,7 +82,10 @@ def predict_class_at_point(lat: float, lon: float, model, device):
     class_map, _, _ = predict_class_map(model, stack_path, device)
     h, w = class_map.shape
     center_patch = class_map[max(0, h // 2 - 2):h // 2 + 2, max(0, w // 2 - 2):w // 2 + 2]
-    values, counts = np.unique(center_patch, return_counts=True)
+    real = center_patch[center_patch != NODATA_CLASS]
+    if real.size == 0:
+        return NODATA_CLASS, item.datetime.date()
+    values, counts = np.unique(real, return_counts=True)
     predicted_class = int(values[counts.argmax()])
     return predicted_class, item.datetime.date()
 
@@ -119,6 +122,10 @@ and you confirm whether they agree. Every check is logged &mdash; this is the ac
 "interpret geo-coded images" validation the PS asks for, not a second model guessing at the
 photo.
 </p>
+<p style="color:{design.INK_MUTED}; margin:4px 0 0 0; font-size:12px;">
+Note: on the hosted demo the validation log persists for this session only (it resets on
+app reboot/redeploy).
+</p>
 </div>"""
     )
     st.write("")
@@ -127,6 +134,11 @@ photo.
     if up_photo is None:
         _render_log_summary()
         return
+
+    # A new upload invalidates any previous check panel (photo and/or coordinates changed).
+    if st.session_state.get("field_photo_name") != up_photo.name:
+        st.session_state.pop("field_check", None)
+        st.session_state["field_photo_name"] = up_photo.name
 
     photo_bytes = up_photo.getvalue()
     st.image(photo_bytes, caption=up_photo.name, width=400)
@@ -146,7 +158,7 @@ photo.
         try:
             with st.spinner("Fetching satellite imagery for this point and running the model..."):
                 predicted_class, scene_date = predict_class_at_point(lat, lon, model1, device)
-        except RuntimeError as e:
+        except Exception as e:
             st.error(f"Couldn't complete this check: {e}")
             return
         st.session_state["field_check"] = {
@@ -155,25 +167,32 @@ photo.
 
     check = st.session_state.get("field_check")
     if check:
-        name = CLASS_NAMES[check["predicted_class"]]
-        r, g, b = CLASS_COLORS[check["predicted_class"]]
-        st.html(
-            f"""<div class="wsig-panel">
+        if check["predicted_class"] == NODATA_CLASS:
+            st.warning(
+                "The satellite scene had no coverage at this point (scene footprint "
+                "gap, not a land-cover reading) — no prediction to verify. Try a "
+                "nearby point inside the fetched scene."
+            )
+        else:
+            name = CLASS_NAMES[check["predicted_class"]]
+            r, g, b = CLASS_COLORS[check["predicted_class"]]
+            st.html(
+                f"""<div class="wsig-panel">
 <div class="wsig-eyebrow">Satellite prediction at this point &middot; {check['scene_date']}</div>
 <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
 <div style="width:16px; height:16px; border-radius:3px; background:rgb({r},{g},{b}); border:1px solid rgba(0,0,0,0.15);"></div>
 <span style="font-size:18px; color:{design.INK};">{name}</span>
 </div>
 </div>"""
-        )
-        st.write("")
-        verdict = st.radio("Does the photo match this prediction?", ["Matches", "Doesn't match", "Unsure"], horizontal=True)
-        note = st.text_input("Note (optional)")
-        if st.button("Log this check"):
-            log_validation(check["lat"], check["lon"], name, verdict, note)
-            st.success("Logged.")
-            del st.session_state["field_check"]
-            st.rerun()
+            )
+            st.write("")
+            verdict = st.radio("Does the photo match this prediction?", ["Matches", "Doesn't match", "Unsure"], horizontal=True)
+            note = st.text_input("Note (optional)")
+            if st.button("Log this check"):
+                log_validation(check["lat"], check["lon"], name, verdict, note)
+                st.success("Logged.")
+                del st.session_state["field_check"]
+                st.rerun()
 
     _render_log_summary()
 

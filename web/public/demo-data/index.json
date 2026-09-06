@@ -1,0 +1,26 @@
+[
+  {
+    "key": "kadwanchi_watershed",
+    "has_change_pair": true,
+    "health_score": 66.2,
+    "display_last": "t2"
+  },
+  {
+    "key": "tamhini_ghat_forest",
+    "has_change_pair": false,
+    "health_score": 81.0,
+    "display_last": "s1"
+  },
+  {
+    "key": "donimalai_barren",
+    "has_change_pair": false,
+    "health_score": 62.5,
+    "display_last": "s1"
+  },
+  {
+    "key": "jayakwadi_dam_water",
+    "has_change_pair": false,
+    "health_score": 83.6,
+    "display_last": "s1"
+  }
+]

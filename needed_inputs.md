@@ -25,16 +25,13 @@ left is genuinely account/data-gated or needs GPU time — nothing here is
 
 ## Needs GPU time (Colab), not new code
 
-- [ ] **Retrain Model 1 against the corrected data.** A real bug was found and
-      fixed (documentation.md section 8, item 8): the Sentinel-2 fetch was
-      silently truncating Kadwanchi's imagery to ~63% of the intended AOI, and
-      Colab training almost certainly hit the same bug — so the deployed
-      checkpoint likely never trained on roughly a third of Kadwanchi's area.
-      Re-evaluating the existing checkpoint against the now-correctly-covering
-      tiles gives an honest current number (mean IoU 54.1%, down from an earlier
-      report that turned out to be based on the truncated data) — a fresh
-      training run against the fixed tile set is the logical way to recover/beat
-      that, but needs a GPU session.
+- [ ] **Follow-up Model 1 retrain if the training set changes again.** The
+      "retrain against the corrected data" run already landed (mean IoU
+      49.1%, water 82.5%, fallow recovered from 0.000 to 7.5% via the
+      class-weighted-loss + mean-IoU-checkpoint fix — see documentation.md
+      sections 8/9). Fallow (7.5%) and built-up (30.4%) remain the weakest
+      classes with the smallest val support; any future data change (new AOI,
+      Bhuvan labels) wants a fresh GPU run, but nothing is currently stale.
 
 ## Still pending (out of your hands, already submitted/investigated)
 

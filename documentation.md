@@ -70,7 +70,7 @@ auditable reason.
 | Satellite imagery | Sentinel-2 L2A, via Earth Search STAC API (AWS Open Data) | Global, free, ~5-day revisit | Automatic, no account needed |
 | Training labels (in use) | ESA WorldCover 10m | Global, free | Automatic, no account needed |
 | Training labels (future upgrade) | Bhuvan LULC (ISRO/NRSC), India-specific | India | **Needs personal registration** on bhuvan.nrsc.gov.in |
-| Field validation (not yet built) | SRISHTI-DRISHTI geo-tagged photos | Project-specific | Needs hackathon-provided extract or manual collection |
+| Field validation (built, needs real photos) | SRISHTI-DRISHTI geo-tagged photos | Project-specific | Needs hackathon-provided extract or real field photos |
 
 Key point: satellite imagery + WorldCover labels are available for **any
 coordinates on Earth's land surface, automatically** — switching the AOI is
@@ -586,7 +586,38 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
    refreshed to the current 9km bbox (912x847) as part of verifying this
    fix, which is also what surfaced the coverage gap in the first place.
    Fixed in both `data_download.py` and the notebook generator.
-9. **Model 2 (Siamese change U-Net) wired into the app, output looked like
+9. **Real production incident: the deployed app was fully down.** After
+   merging the watershed-delineation work into `deploy`, Streamlit Community
+   Cloud crashed the whole app at import time:
+   `ModuleNotFoundError: No module named 'pysheds'` deep in
+   `aoi_picker.py`'s top-level `from watershed_delineation import
+   get_watershed_context`. Root cause, checked not guessed: Streamlit
+   Community Cloud runs Python 3.14, and `numba` (a required transitive
+   dependency of pysheds, via `pysheds -> numba/llvmlite`) only added
+   Python 3.14 support in its 0.63.0 release (2025-12-08) -- pysheds itself
+   doesn't pin a numba version, so an unpinned install had no guarantee of
+   landing on a 3.14-compatible pair, and evidently didn't. This had only
+   ever been verified against a local Python 3.12 venv (item 1's "test
+   locally" discipline doesn't catch a platform-specific Python version
+   mismatch that isn't reproducible locally). Two fixes, both verified
+   before considering this closed:
+   - Wrapped the `watershed_delineation` import in `aoi_picker.py` in
+     `try/except ImportError`, falling back to `get_watershed_context =
+     None` and skipping the DEM/catchment step with a visible caveat
+     instead of crashing -- the same tolerance `run_pipeline` already had
+     around *calling* `get_watershed_context`, just missing from the
+     import itself. Verified by actually reproducing the failure locally
+     (`sys.modules['pysheds'] = None`) and booting the full Streamlit app
+     headless -- HTTP 200, no exceptions, watershed feature cleanly absent.
+   - Floored `numba>=0.63.0` / `llvmlite>=0.46.0` in both requirements
+     files (previously unpinned) so a rebuild is more likely to resolve a
+     Python-3.14-compatible pair instead of leaving it to chance.
+   Not yet independently confirmed against the live Streamlit Cloud
+   redeploy (can't be, from here) -- the import-guard fix is what actually
+   matters for uptime regardless of whether the version floor resolves
+   pysheds successfully on 3.14, since the app now degrades instead of
+   crashing either way.
+10. **Model 2 (Siamese change U-Net) wired into the app, output looked like
    noise instead of the clean blobs Tier-1 produces.** Diagnosed against
    real data (Kadwanchi, Model 2's own training AOI), not guessed — turned
    out to be two separate problems:
@@ -744,22 +775,14 @@ bugs. Fixed in `src/*.py` and the notebook generator, then verified:
 
 ## 10. Roadmap / open decisions
 
-- Multi-AOI training pool — **done** (see section 5, v3), applied to Model
-  1 only. Model 2 (change detection) still needs this same treatment — it's
-  only ever seen Kadwanchi's tiles, since that's the only AOI with a T1/T2
-  pair, and it shows (section 8, item 7: ~40x over-prediction of "new
-  water" even after fixing the unrelated noise bug). Would need at least
-  one more AOI with a real T1/T2 pair (not just single-date `S1`) added to
-  `AOI_JOBS`/`AUX_AOIS` before retraining Model 2.
-- "Pick a location" live flow — **done** (`app/aoi_picker.py`).
-- Cloud deployment — **in progress** (Streamlit Community Cloud, branch
-  `deploy`; Google Cloud Run is the documented fallback — see section 7's
-  "Deployment" note).
-- Real Bhuvan LULC labels once registered.
-- Geo-coded photo validation step (model_plan.md section 2.8).
-- Watershed boundary polygon for real geofencing (hook already exists in
-  `tier1_fallback.py`).
-- SIH presentation/pitch materials — not started.
+- Multi-AOI training pool — **done** (4 sites; retrained twice in Colab, latest 49.1%/78.2% with fallow recovered from 0.000 — see section 9). Next: follow-up retrain if the AOI set changes again, and targeted work on fallow (7.5%, weakest class).
+- Model 2 training-data gap — **still open** (see section 8, item 10): only Kadwanchi has a T1/T2 pair, so Model 2 never got the multi-site pool that fixed Model 1. Needs another AOI with a real T1/T2 pair (not single-date `S1`) in `AOI_JOBS`/`AUX_AOIS` before retraining Model 2.
+- "Pick a location" live flow — **done** (unified picker drives every tab, presets + search/coordinates, TRAINED SITE vs LIVE badge; first-load picks nothing until the user chooses).
+- Cloud deployment — **done** (Streamlit Community Cloud `deploy` branch live; `project/Dockerfile` Cloud Run fallback verified locally; `web/` Next.js frontend). Remaining risk: Community Cloud ~1GB RAM tightness (measured ~800MB pipeline-only).
+- Real Bhuvan LULC labels once registered (still pending).
+- Geo-coded photo validation — **built** (`geo_photo.py` + Field Verification tab, synthetic-tested); still needs real photos for its first real entry.
+- Watershed boundary polygon — **built as DEM-derived approximation** with geofencing active; a verified official boundary remains a nice-to-have, not a blocker.
+- SIH presentation/pitch materials — **drafted** (`pitch_deck_draft.md`, `scaling_narrative.md`); keep numbers in sync with section 9 (49.1%/78.2%, 4 sites).
 
 ## 11. Source-document context
 

@@ -20,9 +20,15 @@ import torch
 
 def confusion_matrix_from_arrays(y_true: np.ndarray, y_pred: np.ndarray, num_classes: int) -> np.ndarray:
     """y_true, y_pred: same-shape int arrays (any shape, flattened internally).
-    Returns cm[i, j] = count of true class i predicted as class j."""
+    Returns cm[i, j] = count of true class i predicted as class j.
+    Pixels whose true label is outside [0, num_classes) -- e.g. NODATA_CLASS=255
+    (no satellite coverage / no reference label) -- carry no signal and are
+    excluded rather than crashing the bincount/reshape or polluting a real
+    class row."""
     y_true = y_true.ravel()
     y_pred = y_pred.ravel()
+    valid = (y_true >= 0) & (y_true < num_classes) & (y_pred >= 0) & (y_pred < num_classes)
+    y_true, y_pred = y_true[valid], y_pred[valid]
     cm = np.zeros((num_classes, num_classes), dtype="int64")
     idx = y_true * num_classes + y_pred
     counts = np.bincount(idx, minlength=num_classes * num_classes)

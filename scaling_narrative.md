@@ -58,18 +58,18 @@ line-item.
 
 ## 4. A credible rollout path, not a hand-wave
 
-1. **Pilot (now → post-hackathon)**: the 3 sites already trained on
-   (Kadwanchi, Tamhini Ghat, Donimalai) plus the real target watershed once
+1. **Pilot (now → post-hackathon)**: the 4 sites already trained on
+   (Kadwanchi, Tamhini Ghat, Donimalai, Jayakwadi) plus the real target watershed once
    decided — proves the mechanism on real, diverse Indian terrain.
 2. **State-level pilot**: partner with one of the 10 states already in
    WDC-PMKSY 2.0's active 2025 batch (Rajasthan, MP, Karnataka, etc.) — these
    states already have live, funded projects that need monitoring *now*,
    making this a real deployment opportunity, not a hypothetical.
 3. **National pool**: extend the multi-site training approach (already
-   proven — see `documentation.md` section 5/6a on how 3 diverse sites fixed
+   proven — see `documentation.md` section 5/6a on how 4 diverse sites fixed
    real class-imbalance gaps) to a training set spanning multiple
    agro-climatic zones, so one national model generalizes the way the
-   3-site pool already demonstrably improved generalization at small scale.
+   4-site pool already demonstrably improved generalization at small scale.
 4. **Integration**: surface alerts directly to the same officers who
    already manage WDC-PMKSY projects, via the API-based architecture
    (roadmap item — see `needed_inputs.md`), rather than requiring a new
@@ -84,4 +84,4 @@ line-item.
   cost of satellite-based re-assessment is negligible by comparison.
 - Scaling the *model* (not just the *pipeline*) to national accuracy still
   needs real training diversity across India's agro-climatic zones — the
-  3-site pool proves the mechanism, not national-scale accuracy yet.
+  4-site pool proves the mechanism, not national-scale accuracy yet.

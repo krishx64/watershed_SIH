@@ -22,7 +22,8 @@ import rasterio
 from rasterio.warp import reproject, Resampling
 
 from config import (
-    AOI_JOBS, DATA_RAW, DATA_LABELS, DATA_PROCESSED, WORLDCOVER_TO_MYCLASS, atomic_raster_write,
+    AOI_JOBS, DATA_RAW, DATA_LABELS, DATA_PROCESSED, WORLDCOVER_TO_MYCLASS, NODATA_CLASS,
+    atomic_raster_write,
 )
 
 EPS = 1e-6
@@ -53,8 +54,16 @@ def build_6channel_stack(raw_path, out_path):
     return profile
 
 
-def rasterize_labels(worldcover_path, target_profile, out_path):
-    """Reproject/resample WorldCover onto the imagery grid, then remap classes."""
+def rasterize_labels(worldcover_path, target_profile, out_path, stack_path=None):
+    """Reproject/resample WorldCover onto the imagery grid, then remap classes.
+
+    Pixels with no WorldCover coverage (reprojected value 0, WorldCover's own
+    nodata) get NODATA_CLASS (255), not a default real class -- otherwise a
+    tile-edge coverage gap silently becomes fake training labels (previously
+    fallow). If stack_path is given, pixels with no real satellite coverage
+    (R,G,B,NIR all exactly 0 in the 6-channel stack) are also set to
+    NODATA_CLASS, so training labels and inference-time predictions agree on
+    what "no data" means. Loss functions must use ignore_index=NODATA_CLASS."""
     with rasterio.open(worldcover_path) as wc_src:
         wc_data = wc_src.read(1)
         wc_crs, wc_transform = wc_src.crs, wc_src.transform
@@ -68,14 +77,22 @@ def rasterize_labels(worldcover_path, target_profile, out_path):
         dst_transform=target_profile["transform"], dst_crs=target_profile["crs"],
         dst_resolution=(target_profile["transform"].a, -target_profile["transform"].e),
         resampling=Resampling.nearest,  # categorical data: never interpolate
+        src_nodata=0, dst_nodata=0,
     )
 
     remapped = np.full_like(aligned, fill_value=6)  # default fallow/unmapped
     for wc_code, my_class in WORLDCOVER_TO_MYCLASS.items():
         remapped[aligned == wc_code] = my_class
+    remapped[aligned == 0] = NODATA_CLASS  # no WorldCover coverage -> no reference label
+
+    if stack_path is not None:
+        with rasterio.open(stack_path) as s:
+            stack = s.read()  # (6, H, W) float32
+        no_coverage = np.all(stack[:4] == 0, axis=0)
+        remapped[no_coverage] = NODATA_CLASS
 
     mask_profile = target_profile.copy()
-    mask_profile.update(count=1, dtype="uint8", nodata=None)
+    mask_profile.update(count=1, dtype="uint8", nodata=NODATA_CLASS)
     atomic_raster_write(out_path, remapped[None], mask_profile)
     print(f"Saved {out_path}  shape={remapped.shape}  "
           f"class counts={dict(zip(*np.unique(remapped, return_counts=True)))}")
@@ -109,7 +126,7 @@ def main():
             profile = build_6channel_stack(raw_path, stack_out)
 
             print(f"--- {name} {date_tag}: rasterizing/remapping labels ---")
-            rasterize_labels(worldcover_path, profile, mask_out)
+            rasterize_labels(worldcover_path, profile, mask_out, stack_path=stack_out)
 
     print("\nDone. Next: python src/tiling.py")
 

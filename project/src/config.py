@@ -40,11 +40,18 @@ def atomic_raster_write(out_path, data, profile, descriptions=None):
     abrupt session restarts left a truncated live-fetched raster on disk."""
     out_path = Path(out_path)
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
-    with rasterio.open(tmp_path, "w", **profile) as dst:
-        dst.write(data)
-        if descriptions:
-            dst.descriptions = descriptions
-    tmp_path.replace(out_path)
+    try:
+        with rasterio.open(tmp_path, "w", **profile) as dst:
+            dst.write(data)
+            if descriptions:
+                dst.descriptions = descriptions
+        tmp_path.replace(out_path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
 
 # ---- AOI (see module docstring) ----
 AOI_NAME = "kadwanchi_watershed"
@@ -166,6 +173,9 @@ CLASS_COLORS = {  # RGB, for visualization
 # CLASS_NAMES/CLASS_COLORS here (after NUM_CLASSES is computed) purely so
 # plain dict lookups (legend, Folium overlay coloring, field-verification
 # labels) render it correctly with zero special-casing at each call site.
+# Invariant: len(CLASS_NAMES) is 8 (7 real + nodata) while NUM_CLASSES is 7 --
+# always loop over range(NUM_CLASSES) / CHANGE classes for model outputs, never
+# len(CLASS_NAMES).
 # Real, verified bug: a live Donimalai Mine deploy showed ~53% of one date's
 # clipped AOI as solid "Water" -- traced to a scene whose footprint only
 # half-covered the bbox; the all-zero nodata region was getting a real class

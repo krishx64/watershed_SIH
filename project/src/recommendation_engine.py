@@ -121,11 +121,21 @@ def generate_alerts(class_map_t2: np.ndarray, change_map: np.ndarray,
             })
 
     history = list(health_history or []) + [health_score]
-    if len(history) >= 2 and all(h < 40 for h in history[-2:]):
+    # Trailing run below 40 (model_plan.md 4: "health_score < 40 for 2+
+    # consecutive periods"). Counts the trailing streak, not total history
+    # length -- [30, 35] rising is still 2 consecutive low periods, [20, 80]
+    # is not, even though len(history) is 2 in both cases.
+    streak = 0
+    for h in reversed(history):
+        if h < 40:
+            streak += 1
+        else:
+            break
+    if streak >= 2:
         alerts.append({
             "severity": "RECOMMEND",
             "rule": "priority_intervention",
-            "message": f"Watershed health declining for {len(history)}+ consecutive periods "
+            "message": f"Watershed health persistently low for the last {streak} periods "
                        f"(current score={health_score:.1f}/100) — priority intervention recommended.",
             "area_ha": None,
         })

@@ -108,7 +108,15 @@ def sample_evidence_at_point(lat: float, lon: float, active_aoi: dict) -> dict:
 
     def mean_channel(img, channel_idx):
         patch = _patch(img[channel_idx], row, col)
-        return float(np.mean(patch))
+        # Exclude no-coverage pixels (R,G,B,NIR all exactly 0 in this date's
+        # stack -- they read as NDVI/NDWI 0 and bias the mean toward zero),
+        # mirroring recommendation_engine.ndvi_trend's own masking. Class
+        # sampling above already excludes NODATA_CLASS the same way.
+        coverage = _patch(np.all(img[:4] == 0, axis=0), row, col)
+        valid = patch[~coverage]
+        if valid.size == 0:
+            return 0.0
+        return float(np.mean(valid))
 
     class_t1 = class_at(active_aoi["class_t1"])
     class_t2 = class_at(active_aoi["class_t2"])

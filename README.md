@@ -41,33 +41,24 @@ No model predicts recommendations directly — that's deliberate. No dataset exi
 
 ## Results
 
-Model 1 trained on a pool of 3 real sites (chosen to cover classes any single site lacked — see [documentation.md](documentation.md) for how each was picked and verified):
+Model 1 trained on a pool of 4 real sites (chosen to cover classes any single site lacked — see [documentation.md](documentation.md) for how each was picked and verified):
 
 | Site | Why it's in the training pool |
 |---|---|
 | Kadwanchi Watershed, Jalna, Maharashtra | Primary site — real Indo-German Watershed Development Programme project (1888 ha), actual check dams/percolation tank |
 | Tamhini Ghat, Pune, Maharashtra | Fixed a near-total dense-vegetation gap (63% tree cover here) |
 | Donimalai Mine, Ballari, Karnataka | Fixed a near-total barren-land gap (4.5% exposed ground here) |
+| Jayakwadi Dam / Godavari river, Paithan, Maharashtra | Fixed river/large-water tracing (49% water here; added after a live unseen-location query failed on a real river) |
 
-Held-out validation, after pooling:
+Latest Colab retrain (class-weighted loss + mean-IoU checkpoint selection, leak-free spatial-block split, corrected full-extent Kadwanchi data):
 
-| Class | IoU | F1 |
-|---|---|---|
-| Water body | 0.800 | 0.889 |
-| Dense vegetation | 0.747 | 0.855 |
-| Agriculture | 0.750 | 0.857 |
-| Fallow | 0.681 | 0.811 |
-| Barren / degraded | 0.610 | 0.758 |
-| Sparse vegetation | 0.555 | 0.714 |
-| Built-up | 0.467 | 0.636 |
+**Mean IoU: 49.1%** · **Pixel accuracy: 78.2%** — per-class IoU: water 82.5%, agriculture 71.2%, dense vegetation 66.8%, sparse vegetation 49.1%, barren 35.9%, built-up 30.4%, fallow 7.5% (recovered from a 0.000 collapse under the old unweighted loss; fallow remains the hardest class). See [documentation.md](documentation.md) section 9 for the full history, including the superseded 65.9%/81.2% baseline from before the split/coverage corrections.
 
-**Mean IoU: 65.9%** · **Pixel accuracy: 81.2%**
-
-Before pooling in the second and third sites, dense vegetation and barren land scored **0.004 and 0.000 IoU** — complete failures, from having almost no training examples. See [documentation.md](documentation.md) for the full before/after story, including the two mistaken guesses (Anantapur city, the Chambal ravine belt) that didn't pan out before Donimalai did.
+Before pooling in the auxiliary sites, dense vegetation and barren land scored **0.004 and 0.000 IoU** — complete failures, from having almost no training examples. See [documentation.md](documentation.md) for the full before/after story, including the two mistaken guesses (Anantapur city, the Chambal ravine belt) that didn't pan out before Donimalai did.
 
 ## App
 
-A Streamlit app (`project/app/`) wraps the trained model: pick one of the three trained sites, or search/enter coordinates for anywhere else — every location runs the same live pipeline (fetch fresh Sentinel-2 imagery, run the model, diff two dates) and populates Land Cover, Change, Health & Alerts, and an interactive Map. Locations outside the trained set are clearly marked **LIVE · UNSEEN LOCATION** rather than presented with the same confidence as the trained sites.
+A Streamlit app (`project/app/`) wraps the trained model: pick one of the three trained-site presets (Kadwanchi, Tamhini Ghat, Donimalai — Jayakwadi is training-only), or search/enter coordinates for anywhere else — every location runs the same live pipeline (fetch fresh Sentinel-2 imagery, run the model, diff two dates) and populates Land Cover, Change, Health & Alerts, and an interactive Map. Locations outside the trained set are clearly marked **LIVE · UNSEEN LOCATION** rather than presented with the same confidence as the trained sites. The app is deployed (Streamlit Community Cloud, `deploy` branch) with a Google Cloud Run Dockerfile fallback; a Next.js marketing/demo frontend (`web/`, precomputed real pipeline outputs, no live backend) accompanies it.
 
 ```
 .venv/Scripts/python.exe -m streamlit run app/streamlit_app.py
@@ -123,7 +114,7 @@ watershed/
 
 ## Status and roadmap
 
-Working end-to-end: trained pipeline, rule-based change detection and alerts, and a live app with location search. See [needed_inputs.md](needed_inputs.md) for what's still needed (real Bhuvan labels, geo-coded field-photo validation — the one piece tied directly to the PS's own title that isn't built yet, cloud deployment) and [documentation.md](documentation.md) for the complete history of decisions, bugs found and fixed, and verification notes.
+Working end-to-end: trained pipeline, rule-based change detection and alerts, live app with location search, watershed boundary/drainage delineation, intervention registry, and geo-tagged photo field verification (built and tested with synthetic photos — needs real field photos for its first real entry). See [needed_inputs.md](needed_inputs.md) for what's still needed (real Bhuvan labels, real field photos, GPU time for follow-up retrains) and [documentation.md](documentation.md) for the complete history of decisions, bugs found and fixed, and verification notes.
 
 ## License
 

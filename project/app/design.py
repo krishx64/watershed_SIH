@@ -7,6 +7,7 @@ in mono type like a survey readout.
 Kept separate from streamlit_app.py so the page logic isn't buried in HTML/CSS.
 """
 
+from functools import lru_cache
 from pathlib import Path
 
 # ---------------------------------------------------------------- tokens
@@ -58,6 +59,11 @@ def _logo_data_uri() -> str:
     """Base64-inlines assets/logo.png so it can drop into any st.html() call
     with no separate static-file route to configure. Regenerate the PNG via
     `python app/assets/make_logo.py`; this just reads whatever's on disk."""
+    return _cached_logo_data_uri()
+
+
+@lru_cache(maxsize=1)
+def _cached_logo_data_uri() -> str:
     import base64
     return "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
 

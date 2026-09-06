@@ -46,7 +46,7 @@ models feeding transparent rule-based logic** — not one black-box model:
 1. **Model 1 (U-Net, ResNet18 encoder)** — classifies every ~10m patch of a
    watershed into 7 land-cover types from a 6-channel satellite stack
    (R, G, B, NIR, NDVI, NDWI).
-2. **Change detection (Tier-1 rule-based diff, refined by a Siamese U-Net)**
+2. **Change detection (Tier-1 rule-based diff; Siamese U-Net exists but Tier-1 is the trusted default)**
    — compares two dates: new water body (positive), new construction
    (possible violation), degradation (needs intervention), vegetation gain
    (improvement).
@@ -65,15 +65,19 @@ screenshot of the app's Land Cover / Change / Health & Alerts tabs.)*
   black-box model.
 - **Multi-site training that fixes real, measured gaps**: training on one
   site alone left two of seven classes at near-total failure (0.004 and
-  0.000 IoU); pooling in two more sites chosen specifically to cover what
-  was missing raised mean IoU from 34.2% to 65.9% — a documented,
+  0.000 IoU); pooling in auxiliary sites chosen specifically to cover what
+  was missing fixed both without regressing the others — a documented,
   reproducible methodology, not a lucky run.
 - **Cross-validated against real official data**: pulled real Bhuvan LULC
   statistics for our AOI via NRSC's own API, discovered our free
   backup-label source (ESA WorldCover) was structurally blind to fallow
   land (35% of the site officially, ~4% in our labels) and barren land
-  (19.7% official vs. under 1%), and fixed it with an NDVI-based
-  refinement calibrated directly against those official numbers.
+  (19.7% official vs. under 1%). An NDVI-threshold refinement calibrated
+  against those numbers was tried and **reverted** (matched aggregate
+  proportions but never beat the plain-WorldCover baseline when retrained:
+  65.9% vs 61.8%/63.0% — salt-and-pepper boundaries don't learn as well as
+  real field edges; see documentation.md 6a). The honest fix remains a real
+  Bhuvan shapefile, not a heuristic proxy.
 - **Zero marginal cost to scale** — free imagery + free compute-tier
   inference means monitoring the 1,151st site costs the same as the 1st.
   See `scaling_narrative.md` for the full argument.
@@ -88,14 +92,14 @@ screenshot of the app's Land Cover / Change / Health & Alerts tabs.)*
 
 | Metric | Value |
 |---|---|
-| Mean IoU (7-class land cover) | 65.9% |
-| Pixel accuracy | 81.2% |
-| Best classes (water, agriculture, dense vegetation) | IoU 0.75-0.80 |
+| Mean IoU (7-class land cover) | 49.1% |
+| Pixel accuracy | 78.2% |
+| Best classes (water, agriculture, dense vegetation) | IoU 0.67-0.83 |
 
-Trained on 3 real Indian sites chosen to cover documented class gaps:
+Trained on 4 real Indian sites chosen to cover documented class gaps:
 Kadwanchi Watershed (Jalna, Maharashtra — real Indo-German Watershed
 Development Programme site), Tamhini Ghat (Western Ghats forest), Donimalai
-(Karnataka, barren/mining terrain).
+(Karnataka, barren/mining terrain), Jayakwadi Dam (large-water/river tracing).
 
 **Tech stack:** PyTorch, segmentation-models-pytorch, Sentinel-2 (Earth
 Search STAC / AWS Open Data), ESA WorldCover, Bhuvan API, Streamlit,
@@ -114,9 +118,9 @@ rasterio/geopandas. Runs end-to-end on a free-tier Colab GPU.
   the 10 states in WDC-PMKSY 2.0's active 2025 batch → national multi-zone
   training pool → API integration into existing officer workflows.
 - **Roadmap** (honest, not oversold): real Bhuvan shapefile labels once
-  registration completes, geo-coded field-photo cross-validation (the
-  literal ask in the PS title, not yet built), cloud deployment
-  (API-based, matches the PS's own preferred-tech list), mobile access.
+  registration completes, real field photos for the built (synthetic-tested)
+  geo-tagged cross-validation tab, mobile-accessible frontend work
+  (the PS's own preferred-tech list).
 
 ---
 

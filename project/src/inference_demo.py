@@ -81,11 +81,11 @@ def predict_change_map(model2, img_t1, img_t2, device):
     change_map = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()[:orig_h, :orig_w].astype("uint8")
 
     # Same nodata reasoning as predict_class_map: a pixel with no real
-    # coverage at either date can't have a real change verdict. Tier-1's diff
-    # already excludes NODATA_CLASS pixels implicitly (they never match any
-    # source/target class in diff_to_change_map); do the same here explicitly.
+    # coverage at either date can't have a real change verdict. Excluded as
+    # NODATA_CLASS (never booked as "No change"), matching
+    # tier1_fallback.diff_to_change_map.
     nodata = np.all(img_t1[:4] == 0, axis=0) | np.all(img_t2[:4] == 0, axis=0)
-    change_map[nodata] = 0
+    change_map[nodata] = NODATA_CLASS
 
     # Tier-1's diff always gets this same treatment (see tier1_fallback.run_tier1) --
     # without it, a raw per-pixel argmax looks dramatically noisier than Tier-1's
@@ -115,8 +115,13 @@ def render_change_map(change_map, ax, title):
         0: (230, 230, 230), 1: (66, 135, 245), 2: (200, 30, 30),
         3: (139, 69, 19), 4: (34, 139, 34),
     }
-    cmap = ListedColormap([np.array(change_colors[i]) / 255 for i in range(5)])
-    ax.imshow(change_map, cmap=cmap, vmin=0, vmax=4, interpolation="nearest")
+    # NODATA_CLASS (255) must never fall through to the top edge color
+    # (imshow clips out-of-range values, which would paint "no coverage" as
+    # sage-green "vegetation gain"). Remap to a dedicated gray slot instead.
+    drawn = np.where(change_map == NODATA_CLASS, 5, change_map).astype("uint8")
+    cmap = ListedColormap([np.array(change_colors[i]) / 255 for i in range(5)]
+                          + [np.array(CLASS_COLORS[NODATA_CLASS]) / 255])
+    ax.imshow(drawn, cmap=cmap, vmin=0, vmax=5, interpolation="nearest")
     ax.set_title(title)
     ax.axis("off")
 
@@ -150,9 +155,9 @@ def main():
         raise RuntimeError(f"No trained Model 1 checkpoint at {ckpt_path} — run model1_unet.py first.")
 
     model = build_model().to(device)
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state"])
-    print(f"Loaded Model 1 (epoch {ckpt['epoch']}, val_loss={ckpt['val_loss']:.4f})")
+    print(f"Loaded Model 1 (epoch {ckpt['epoch']}, val_mean_iou={ckpt.get('val_mean_iou', ckpt.get('val_loss', 'n/a'))})")
 
     stack_t1 = DATA_PROCESSED / f"{AOI_NAME}_T1_stack6.tif"
     stack_t2 = DATA_PROCESSED / f"{AOI_NAME}_T2_stack6.tif"

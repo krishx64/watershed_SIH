@@ -15,17 +15,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 from scipy import ndimage
 
-from config import CLASS_NAMES
+from config import CLASS_NAMES, NODATA_CLASS
 
 WATER, DENSE_VEG, AGRI, SPARSE_VEG, BARREN, BUILTUP, FALLOW = range(7)
 
-MIN_BLOB_PIXELS_DEFAULT = 12  # ~100 m^2 at 10m/px Sentinel-2 resolution
+# 12 connected pixels at 10m/px = 12 * 100 m^2 = 1200 m^2 minimum mappable unit.
+MIN_BLOB_PIXELS_DEFAULT = 12
 
 
 def diff_to_change_map(class_t1: np.ndarray, class_t2: np.ndarray) -> np.ndarray:
-    """Per-pixel change class (model_plan.md 3.3), from two same-shape class maps."""
+    """Per-pixel change class (model_plan.md 3.3), from two same-shape class maps.
+    Pixels with no real satellite coverage in either date (NODATA_CLASS=255)
+    are assigned NODATA_CLASS in the output -- excluded from change statistics,
+    never booked as "No change". Without this, a partial-scene gap silently
+    inflates the "No change" hectares.
+
+    Rules are deliberately conservative (unlisted transitions stay "No change"):
+    dense_veg->water/builtup, dense/agri->barren, barren->sparse and similar
+    are plausible in the real world but indistinguishable from classifier noise
+    at current accuracy -- expanding them without validation would trade
+    under-reporting for false alarms."""
     assert class_t1.shape == class_t2.shape
     change = np.zeros(class_t1.shape, dtype="uint8")  # 0 = no change
+
+    nodata = (class_t1 == NODATA_CLASS) | (class_t2 == NODATA_CLASS)
 
     new_water = np.isin(class_t1, [BARREN, SPARSE_VEG, AGRI, FALLOW]) & (class_t2 == WATER)
     change[new_water] = 1
@@ -39,14 +52,16 @@ def diff_to_change_map(class_t1: np.ndarray, class_t2: np.ndarray) -> np.ndarray
     veg_gain = np.isin(class_t1, [BARREN, FALLOW, SPARSE_VEG]) & np.isin(class_t2, [DENSE_VEG, AGRI])
     change[veg_gain] = 4
 
+    change[nodata] = NODATA_CLASS
     return change
 
 
 def filter_small_blobs(change_map: np.ndarray, min_pixels: int = MIN_BLOB_PIXELS_DEFAULT) -> np.ndarray:
-    """Drop connected regions smaller than min_pixels, per change class (noise filter)."""
+    """Drop connected regions smaller than min_pixels, per change class (noise filter).
+    NODATA_CLASS pixels are never filtered -- they are missing data, not noise."""
     cleaned = change_map.copy()
     for cls in np.unique(change_map):
-        if cls == 0:
+        if cls == 0 or cls == NODATA_CLASS:
             continue
         cls_mask = change_map == cls
         labeled, n = ndimage.label(cls_mask)
@@ -59,16 +74,22 @@ def filter_small_blobs(change_map: np.ndarray, min_pixels: int = MIN_BLOB_PIXELS
 
 def geofence_mask(change_map: np.ndarray, watershed_mask: np.ndarray | None) -> np.ndarray:
     """Zero out change outside the watershed boundary, if a boundary mask is given.
-    watershed_mask: same-shape bool array, True = inside watershed. None = no geofence applied."""
+    watershed_mask: same-shape bool array, True = inside watershed. None = no geofence applied.
+    NODATA_CLASS pixels stay NODATA_CLASS even outside the boundary -- missing
+    data must not become "No change" via geofencing."""
     if watershed_mask is None:
         return change_map
     out = change_map.copy()
-    out[~watershed_mask] = 0
+    clear = ~watershed_mask & (out != NODATA_CLASS)
+    out[clear] = 0
     return out
 
 
 def summarize_changes(change_map: np.ndarray, pixel_area_m2: float = 100.0) -> dict:
-    """Area (in hectares) per change class, for reporting/demo."""
+    """Area (in hectares) per change class, for reporting/demo.
+    NODATA_CLASS pixels are excluded from every class total (they are not
+    "No change" hectares). Use int((change_map == NODATA_CLASS).sum()) at the
+    call site if the no-coverage area itself needs reporting."""
     from config import CHANGE_CLASS_NAMES
     summary = {}
     for cls, name in CHANGE_CLASS_NAMES.items():

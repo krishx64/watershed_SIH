@@ -42,6 +42,7 @@ CHANGE_CLASS_COLORS = {
     2: (162, 59, 46),    # New construction/built-up -- danger
     3: (166, 106, 22),   # Vegetation/water loss (degradation) -- amber
     4: (78, 122, 61),    # Vegetation gain -- sage
+    255: (225, 225, 225),  # No coverage -- matches CLASS_COLORS[NODATA_CLASS], never a change class
 }
 
 WEB_PUBLIC = Path(__file__).resolve().parents[2] / "web" / "public" / "demo-data"

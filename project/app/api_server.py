@@ -4,7 +4,7 @@ Exposes REST JSON endpoints connecting Next.js (web/) to the trained
 Model 1 pipeline, intervention registry, geocoding, and field logs.
 
 Runs with:
-  uv run python app/api_server.py
+  uv run python project/app/api_server.py
 """
 
 import json
@@ -79,7 +79,7 @@ def get_model():
     if _cached_model is None:
         import torch
         from model1_unet import build_model
-        torch.set_num_threads(1)
+        torch.set_num_threads(min(4, os.cpu_count() or 4))
         _cached_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"--> [Model] Loading Model 1 checkpoint onto {_cached_device}...")
         _cached_model = build_model().to(_cached_device)

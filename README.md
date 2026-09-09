@@ -19,29 +19,54 @@ India runs large watershed-development programs — check dams, percolation tank
 3. **Geo-Coded Image Assessment & Evidence Fusion** — ingests field photos, extracts EXIF GPS and timestamp, identifies the local Copernicus DEM watershed, pulls multi-spectral satellite evidence, and generates unified, explainable decision cards.
 4. **Explainable Recommendations** — plain-language, rule-based alerts ("Possible unauthorized construction detected — recommend field verification") that trace back to specific, quantifiable evidence.
 
-## Architecture
+## Architecture & Parallel Pipeline Flow
+
+The live analytical pipeline executes with **3 concurrent thread workers** (`ThreadPoolExecutor`), collapsing cold satellite ingestion and topographic delineation time from over **2 minutes down to 33 seconds**:
 
 ```mermaid
-flowchart LR
-    A["Satellite imagery\n(6-channel: R,G,B,NIR,NDVI,NDWI)"] --> B["Model 1\nLULC U-Net"]
-    B --> C["Land-cover class map\n(per date)"]
-    C --> D["Tier-1 rule-based diff\n(or Model 2: Siamese U-Net)"]
-    D --> E["Change type map"]
-    C --> F["Evidence Fusion &\nRecommendation Engine"]
-    E --> F
-    H["Geo-Coded Field Photo\n(EXIF GPS + Timestamp)"] --> F
-    I["Copernicus DEM\n(D8 Catchment Routing)"] --> F
-    F --> G["Alerts, Outcome Assessment\n+ Health Score"]
+flowchart TD
+    classDef inputStyle fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    classDef parallelStyle fill:#0f172a,stroke:#06b6d4,stroke-width:2px,color:#fff
+    classDef syncStyle fill:#1e1e2e,stroke:#10b981,stroke-width:2px,color:#fff
+    classDef outputStyle fill:#18181b,stroke:#f59e0b,stroke-width:2px,color:#fff
+
+    Req["AOI Request & Radius<br/>(OpenStreetMap Nominatim Geocoding)"]:::inputStyle
+    Launch["ThreadPoolExecutor (max_workers=3)"]:::parallelStyle
+
+    Req --> Launch
+
+    subgraph ConcurrentExecution["Concurrent Execution (~22-28s)"]
+        W1["Worker 1: Historical T1 (~2020)<br/>STAC Search + 4 COG Bands + U-Net"]:::parallelStyle
+        W2["Worker 2: Recent T2 (~2024)<br/>STAC Search + 4 COG Bands + U-Net"]:::parallelStyle
+        W3["Worker 3: Copernicus DEM (30m)<br/>D8 Flow Routing + Catchment + Stream Network"]:::parallelStyle
+    end
+
+    Launch --> W1
+    Launch --> W2
+    Launch --> W3
+
+    Barrier["Barrier Synchronization (~30s total)"]:::syncStyle
+    W1 --> Barrier
+    W2 --> Barrier
+    W3 --> Barrier
+
+    Sync["Align DEM Catchment to T2 Grid<br/>+ Tier-1 Geofenced Change Detection"]:::syncStyle
+    Decision["Health Score (0-100) + 5-Yr NDVI Trend<br/>+ Multi-Signal Evidence Fusion & Alerts"]:::syncStyle
+    WebGIS["Export to web/public/demo-data/<br/>(React-Leaflet Interactive Map & Telemetry HUD)"]:::outputStyle
+
+    Barrier --> Sync --> Decision --> WebGIS
 ```
 
-No model predicts recommendations directly — that's deliberate. No dataset exists for it, and a black-box "do X" output wouldn't be trusted or adopted by a government official. Two focused, inspectable models feed transparent if-then rules and multi-signal evidence fusion instead.
+No model predicts recommendations directly — that's deliberate. No dataset exists for it, and a black-box "do X" output wouldn't be trusted or adopted by a government official. Two focused, inspectable models feed transparent if-then rules, D8 catchment boundary geofencing, and multi-signal evidence fusion instead.
 
-| Component | Predicts | Method |
-|---|---|---|
-| Model 1 — U-Net (ResNet18 encoder) | Land-cover class per pixel, single date | PyTorch U-Net Deep Learning |
-| Tier-1 diff / Model 2 (Siamese U-Net) | Change type per pixel, between two dates | Spectral Difference / Siamese U-Net |
-| Evidence Fusion Engine | Multi-signal agreement & confidence scoring | Explicit Weighted Multi-Sensor Logic |
-| Recommendation Engine | Alerts + suggested actions with evidence | Auditable Rule-Based Logic |
+| Component | Function | Implementation | Latency / Benchmark |
+|---|---|---|---|
+| **Worker 1 & 2: Sentinel-2 Ingestion** | T1 & T2 4-band spectral acquisition (R, G, B, NIR) | Element84 STAC + Direct Windowed COG Streaming | ~22s concurrent streaming |
+| **Worker 3: Topographic Catchment** | Physical watershed boundary & drainage network | Copernicus DEM GLO-30 + PySheds D8 Routing | Overlapped in background (~15s) |
+| **Model 1: LULC Segmentation** | 7-class pixel classification on 6-channel stack | PyTorch U-Net (ResNet18 backbone) | **10.5 ms** (NVIDIA RTX 3050 CUDA) |
+| **Tier-1 Change Engine** | Structural change detection (Water gain, degradation) | Topography-Geofenced Rule Matrix | < 0.2s |
+| **Evidence Fusion & Alerts** | Actionable intervention recommendations | Explicit Weighted Multi-Sensor Logic | Instantaneous |
+| **End-to-End Cold Pipeline** | Full AOI analysis from scratch | Parallel Multi-Threaded Engine | **33.05 seconds** (down from 131s) |
 
 ---
 

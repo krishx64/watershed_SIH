@@ -21,6 +21,7 @@ import numpy as np
 import rasterio
 from rasterio.mask import mask as rio_mask
 from rasterio.warp import transform_bounds, reproject, Resampling
+from rasterio.windows import from_bounds
 from shapely.geometry import box, mapping
 from pystac_client import Client
 
@@ -38,6 +39,15 @@ DATE_WINDOWS = {
     "S1": "2024-11-01/2025-03-31",  # recent dry season
 }
 
+_stac_catalog = None
+
+
+def get_stac_catalog():
+    global _stac_catalog
+    if _stac_catalog is None:
+        _stac_catalog = Client.open(STAC_API_URL)
+    return _stac_catalog
+
 
 def _fully_covers(item_bbox, bbox) -> bool:
     minx, miny, maxx, maxy = bbox
@@ -47,19 +57,8 @@ def _fully_covers(item_bbox, bbox) -> bool:
 
 def search_scene(bbox, date_tag, max_cloud=20, limit=30):
     """Find the lowest-cloud scene over bbox in the window for this date tag,
-    preferring one whose own footprint fully covers the requested bbox.
-
-    Real bug this guards against: the original version sorted candidates by
-    cloud cover ONLY, with no coverage check, and a scene's footprint only
-    partially overlapping the AOI is a real, observed case -- confirmed for
-    Kadwanchi's own primary AOI, where the plain lowest-cloud pick left 40.7%
-    of the requested bbox uncovered even though a same-cloud-cover,
-    full-coverage alternative (S2B_43QEC_20200226_1_L2A) existed in the very
-    same search window and was simply never considered. Full-coverage
-    candidates (if any exist in the window) are preferred over partial ones
-    regardless of a small cloud-cover difference; only cloud cover breaks
-    ties within each group."""
-    catalog = Client.open(STAC_API_URL)
+    preferring one whose own footprint fully covers the requested bbox."""
+    catalog = get_stac_catalog()
     search = catalog.search(
         collections=[STAC_COLLECTION],
         bbox=bbox,
@@ -105,13 +104,24 @@ def clip_scene_to_stack(item, bbox, out_path):
     NODATA_CLASS already handles correctly everywhere downstream."""
     from concurrent.futures import ThreadPoolExecutor
 
-    # Pre-calculate target grid using first band to ensure strict alignment
-    first_href = item.assets[S2_BANDS[0]].href
-    with rasterio.Env(
-        GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
-        GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES",
-        VSI_CACHE=True,
-    ):
+    def _vsi(url: str) -> str:
+        return f"/vsicurl/{url}" if url.startswith("http") and not url.startswith("/vsicurl/") else url
+
+    gdal_env = {
+        "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
+        "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES": "YES",
+        "GDAL_HTTP_MULTIPLEX": "YES",
+        "GDAL_HTTP_VERSION": "2",
+        "GDAL_NUM_THREADS": "ALL_CPUS",
+        "VSI_CACHE": "TRUE",
+        "VSI_CACHE_SIZE": "50000000",
+        "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff",
+    }
+
+    # Pre-calculate target grid using first band & read its pixels directly
+    first_band = S2_BANDS[0]
+    first_href = _vsi(item.assets[first_band].href)
+    with rasterio.Env(**gdal_env):
         with rasterio.open(first_href) as src0:
             minx, miny, maxx, maxy = transform_bounds("EPSG:4326", src0.crs, *bbox)
             res = src0.res[0]
@@ -124,28 +134,25 @@ def clip_scene_to_stack(item, bbox, out_path):
                 height=target_h, width=target_w, transform=target_transform,
                 count=len(S2_BANDS), dtype="uint16",
             )
+            win0 = from_bounds(minx, miny, maxx, maxy, transform=src0.transform)
+            band0_data = src0.read(1, window=win0, out_shape=(target_h, target_w), boundless=True, fill_value=0)
+
+    band_results = {first_band: band0_data}
 
     def fetch_single_band(band_name):
-        href = item.assets[band_name].href
-        with rasterio.Env(
-            GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
-            GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES",
-            VSI_CACHE=True,
-        ):
+        href = _vsi(item.assets[band_name].href)
+        with rasterio.Env(**gdal_env):
             with rasterio.open(href) as src:
-                band_data = np.zeros((target_h, target_w), dtype="uint16")
-                reproject(
-                    source=rasterio.band(src, 1), destination=band_data,
-                    src_transform=src.transform, src_crs=src.crs,
-                    dst_transform=target_transform, dst_crs=target_crs,
-                    resampling=Resampling.nearest,
-                    src_nodata=0, dst_nodata=0,
-                )
+                win = from_bounds(minx, miny, maxx, maxy, transform=src.transform)
+                band_data = src.read(1, window=win, out_shape=(target_h, target_w), boundless=True, fill_value=0)
                 return band_name, band_data
 
-    # Stream all 4 Sentinel-2 bands in parallel over concurrent HTTP connections
-    with ThreadPoolExecutor(max_workers=len(S2_BANDS)) as pool:
-        band_results = dict(pool.map(fetch_single_band, S2_BANDS))
+    # Stream remaining Sentinel-2 bands in parallel over concurrent HTTP connections
+    remaining_bands = [b for b in S2_BANDS if b != first_band]
+    if remaining_bands:
+        with ThreadPoolExecutor(max_workers=len(remaining_bands)) as pool:
+            for b_name, b_data in pool.map(fetch_single_band, remaining_bands):
+                band_results[b_name] = b_data
 
     band_arrays = [band_results[b] for b in S2_BANDS]
     stack = np.stack(band_arrays, axis=0)

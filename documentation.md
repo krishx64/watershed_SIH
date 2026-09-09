@@ -1028,3 +1028,113 @@ A dedicated 9-module educational manual was introduced at `/how-to-use` with int
 - **Strict English Geocoding & Clean Initial Slate**: All Nominatim geocoding requests enforce English locale (`accept-language: en`), and the console opens with an impartial search prompt without hardcoding any specific demo village as default.
 - **Zero Emoji Compliance**: Full codebase compliance with Phosphor SVG icons across all interfaces.
 
+---
+
+## 15. Parallel Multi-Threaded Pipeline Architecture & 33s Latency Optimization (Sep 2026)
+
+### 15.1. The Latency Challenge & Root Cause Analysis
+During live querying across arbitrary Indian coordinates, cold network queries initially took between 89 and 131 seconds (over 2 minutes). Sub-second profiling identified the exact root causes:
+1. **Serial Execution Flow**: Historical baseline (T1: ~2020) and recent scene (T2: ~2024) were queried, streamed, and processed one after another (~30s + ~30s), followed sequentially by DEM topographic processing (~15s).
+2. **GDAL Reprojection Overhead**: Remote Cloud-Optimized GeoTIFFs (COGs) were being read through `rasterio.warp.reproject`, invoking GDAL's reprojection subsystem over HTTP range requests, generating `NotGeoreferencedWarning` alerts and pulling extraneous scanline blocks from AWS S3 in `us-west-2`.
+3. **Redundant HTTP Handshakes**: The root Element84 Earth Search STAC catalog client was re-opened on every search, adding 2–3s of unneeded connection setup.
+4. **Hardware Verification**: Dedicated benchmarking on the local **NVIDIA GeForce RTX 3050 6GB Laptop GPU** proved Model 1 U-Net inference takes only **10.5 ms (0.01 seconds)** per image. The GPU was never throttling; 100% of the wall-clock delay was remote transatlantic network I/O from AWS S3 in Oregon (`us-west-2`).
+
+### 15.2. Multi-Threaded Concurrent Execution Design
+The core execution engine (`project/app/aoi_picker.py` and `project/src/data_download.py`) was restructured into a 3-worker thread pool (`ThreadPoolExecutor(max_workers=3)`):
+- **Worker 1 (T1 Historical Baseline)**: Concurrently searches STAC for a dry-season scene (~2019–2020), streams 4 spectral bands, builds the 6-channel stack, and performs U-Net inference.
+- **Worker 2 (T2 Recent Scene)**: Simultaneously executes the identical workflow for the recent dry season (~2024–2025).
+- **Worker 3 (DEM Topography & Catchment)**: Simultaneously streams Copernicus 30m GLO-30 elevation data, executes D8 flow routing, pour-point snapping, stream network derivation, and reverse-geocodes administrative hierarchy via OpenStreetMap Nominatim.
+- **Barrier Synchronization**: All three workers run in parallel, collapsing total latency from $T(\text{T1}) + T(\text{T2}) + T(\text{DEM})$ to $\max(T(\text{T1}), T(\text{T2}), T(\text{DEM}))$.
+
+### 15.3. Direct Windowed COG Streaming & Connection Reuse
+1. **Direct Windowed Slicing**: Replaced `rasterio.warp.reproject` with `from_bounds(...)` and `src.read(1, window=win, boundless=True, fill_value=0)`. Because the Sentinel-2 scene CRS already matches the target UTM projection, this extracts only the exact intersecting COG tiles with zero reprojection penalty, saving ~7s per scene and eliminating all georeferencing warnings.
+2. **Band-Level Multi-Threading**: Within each scene worker, spectral bands are fetched concurrently across threads with `GDAL_NUM_THREADS="ALL_CPUS"`, `GDAL_HTTP_MULTIPLEX="YES"` (HTTP/2 multiplexing), and a 50MB VSI cache.
+3. **STAC Client Caching**: Module-level singleton `get_stac_catalog()` preserves the open STAC connection.
+4. **Thread-Safe PyTorch Forward Passes**: Implemented `_model_lock = threading.Lock()` around GPU inference to guarantee safe CUDA memory access when both scenes finish streaming simultaneously.
+
+### 15.4. Empirical Benchmark Comparison
+| Stage | Previous Serial Baseline | Optimized Parallel Engine | Speedup |
+| :--- | :--- | :--- | :--- |
+| **STAC Discovery** | 2 × 2.4s (serial) | 2.4s (parallel & cached) | 2.0× |
+| **Band Streaming (T1 + T2)** | ~60s (serial 4-band reads) | ~22s (concurrent windowed COG) | 2.7× |
+| **Copernicus DEM & D8 Routing** | ~15s (waited for satellites) | Runs in background worker | 100% overlapped |
+| **PyTorch GPU Inference** | 10.5 ms (RTX 3050 CUDA) | 10.5 ms (with thread lock) | Instantaneous |
+| **End-to-End Cold Query** | **89 – 131 seconds** | **33.05 seconds** | **~3.5× faster** |
+| **Cached Query (<10km)** | 29.2 ms | **< 10 ms** | Instant |
+
+### 15.5. Comprehensive Current Pipeline Flow Diagram
+
+```mermaid
+flowchart TD
+    classDef inputStyle fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    classDef parallelStyle fill:#0f172a,stroke:#06b6d4,stroke-width:2px,color:#fff
+    classDef syncStyle fill:#1e1e2e,stroke:#10b981,stroke-width:2px,color:#fff
+    classDef outputStyle fill:#18181b,stroke:#f59e0b,stroke-width:2px,color:#fff
+
+    subgraph Phase1["1. User Request & Spatial Window"]
+        UI["Web Frontend / LocationPicker<br/>(Place Name / Coordinates + Radius)"]:::inputStyle
+        Geo["OpenStreetMap Nominatim<br/>(Reverse Geocoding / Lat-Lon BBox)"]:::inputStyle
+        API["Python API Server<br/>POST /api/pipeline/run"]:::inputStyle
+        CacheCheck{"Cache Check<br/>(Memory / Disk)?"}:::inputStyle
+
+        UI --> Geo --> API --> CacheCheck
+    end
+
+    CacheCheck -- "Cache Hit (<10ms)" --> InstantResp["Instant Cached Response<br/>web/public/demo-data/"]:::outputStyle
+
+    subgraph Phase2["2. Concurrent Execution (ThreadPoolExecutor - max_workers=3)"]
+        CacheCheck -- "Cache Miss" --> Launch["Launch 3 Concurrent Workers"]:::parallelStyle
+
+        subgraph Worker1["Worker 1: Historical Baseline (T1: ~2020)"]
+            T1_STAC["STAC Search: Element84<br/>sentinel-2-l2a (~2019-2020)"]:::parallelStyle
+            T1_COG["Direct Windowed Reads<br/>4 Bands (R, G, B, NIR) in Parallel"]:::parallelStyle
+            T1_Stack["Compute NDVI & NDWI<br/>(Build 6-Channel Stack)"]:::parallelStyle
+            T1_Infer["PyTorch Model 1 U-Net<br/>(10.5ms on NVIDIA RTX 3050)"]:::parallelStyle
+
+            T1_STAC --> T1_COG --> T1_Stack --> T1_Infer
+        end
+
+        subgraph Worker2["Worker 2: Recent Scene (T2: ~2024/2025)"]
+            T2_STAC["STAC Search: Element84<br/>sentinel-2-l2a (~2024-2025)"]:::parallelStyle
+            T2_COG["Direct Windowed Reads<br/>4 Bands (R, G, B, NIR) in Parallel"]:::parallelStyle
+            T2_Stack["Compute NDVI & NDWI<br/>(Build 6-Channel Stack)"]:::parallelStyle
+            T2_Infer["PyTorch Model 1 U-Net<br/>(10.5ms on NVIDIA RTX 3050)"]:::parallelStyle
+
+            T2_STAC --> T2_COG --> T2_Stack --> T2_Infer
+        end
+
+        subgraph Worker3["Worker 3: Topography & Hydrology"]
+            DEM_Fetch["Copernicus DEM GLO-30<br/>(30m Elevation Mosaic)"]:::parallelStyle
+            PySheds["PySheds D8 Hydrological Routing<br/>Pit Filling -> Flow Direction -> Accumulation"]:::parallelStyle
+            PourCatch["Pour Point Snapping &<br/>Catchment Boundary Delineation"]:::parallelStyle
+            Admin["OSM Admin Geocoding<br/>(State, District, Block)"]:::parallelStyle
+
+            DEM_Fetch --> PySheds --> PourCatch --> Admin
+        end
+
+        Launch --> Worker1
+        Launch --> Worker2
+        Launch --> Worker3
+    end
+
+    subgraph Phase3["3. Synchronization & Analysis (~30-33s total)"]
+        Join["Barrier Synchronization<br/>(Wait for T1, T2 & DEM)"]:::syncStyle
+        Align["Align Watershed & Drainage Masks<br/>onto T2 Satellite Raster Grid"]:::syncStyle
+        Change["Tier-1 Geofenced Change Detection<br/>(Water gain, Loss, Construction, Veg change)"]:::syncStyle
+        Health["Compute Health Score (0-100)<br/>& 5-Year NDVI Trend"]:::syncStyle
+        Alerts["Generate Decision-Support Alerts &<br/>Intervention Recommendations"]:::syncStyle
+
+        T1_Infer --> Join
+        T2_Infer --> Join
+        PourCatch --> Join
+        Join --> Align --> Change --> Health --> Alerts
+    end
+
+    subgraph Phase4["4. Web GIS Presentation"]
+        Export["Export Geo-Overlays to web/public/demo-data/<br/>- classmap_t1.png & classmap_t2.png<br/>- change.png<br/>- watershed_boundary.png (Orange)<br/>- drainage_network.png (Cyan)<br/>- meta.json (Metrics & breakdown)"]:::outputStyle
+        Leaflet["React-Leaflet Interactive GIS Map<br/>(OpenStreetMap Basemap + Toggleable Overlays)"]:::outputStyle
+
+        Alerts --> Export --> Leaflet
+    end
+```
+

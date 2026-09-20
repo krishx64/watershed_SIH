@@ -15,6 +15,14 @@ from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+import os
+
+# Fix for conflicting system-level PROJ installations (e.g. from PostgreSQL/PostGIS)
+# This prevents rasterio from loading the wrong proj.db and crashing.
+if "PROJ_LIB" in os.environ:
+    del os.environ["PROJ_LIB"]
+if "PROJ_DATA" in os.environ:
+    del os.environ["PROJ_DATA"]
 
 try:
     sys.stdout.reconfigure(line_buffering=True)

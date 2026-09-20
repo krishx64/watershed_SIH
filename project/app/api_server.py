@@ -11,6 +11,7 @@ import io
 import json
 import mimetypes
 import queue
+import re
 import sys
 import threading
 import time
@@ -384,6 +385,16 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         print(f"[{timestamp}] --> Incoming GET {self.path}", flush=True)
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # Live custom runs are served from the in-memory byte cache, never from
+        # the static export. This mirrors next.config.ts's rewrite
+        # (/demo-data/custom_live* -> /api/images/*), which a static export
+        # cannot apply itself. Without it, the committed pre-run files under
+        # web/public/demo-data/custom_live*/ shadow every fresh result, so the
+        # UI keeps showing a stale run for every location.
+        live = re.match(r"^/demo-data/(custom_live[^/]*)/(.+)$", path)
+        if live:
+            path = f"/api/images/{live.group(1)}/{live.group(2)}"
 
         # In the Docker image the Python server also serves the Next.js static
         # export (STATIC_DIR). Every non-/api path is a static asset, including

@@ -1,0 +1,69 @@
+# Full-stack local deployment: Next.js UI + Python API + MongoDB + Redis.
+#
+# Quick start:
+#   cp .env.example .env        # then fill in AUTH_SECRET_KEY (and any ISRO tokens you have)
+#   docker compose up --build
+#   open http://localhost:8000
+#
+# MongoDB provides the GridFS raster cache + statutory audit log; Redis is the
+# JSON/binary cache backend. Without them the app still runs, but falls back to
+# an in-memory cache that is lost on restart.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: watershed-signal:local
+    ports:
+      - "8000:8000"
+    environment:
+      # --- Cache / audit backends (service names below) ---
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-watershed_db}
+      REDIS_URL: redis://redis:6379
+
+      # --- Security ---
+      # AUTH_SECRET_KEY signs officer session tokens; the in-code default is
+      # insecure, so set a real value in .env for any non-local use.
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-change-me-in-production}
+      ADMIN_PASSKEY: ${ADMIN_PASSKEY:-ADMIN_SIH_2026}
+
+      # --- ISRO ground-truth / sovereign ingestion (optional) ---
+      # These require accounts at bhuvan.nrsc.gov.in / bhoonidhi.nrsc.gov.in.
+      # Unset => Bhuvan uses its baseline fallback and Bhoonidhi stays offline.
+      BHUVAN_TOKEN_LULC: ${BHUVAN_TOKEN_LULC:-}
+      BHUVAN_TOKEN_GEOID: ${BHUVAN_TOKEN_GEOID:-}
+      BHUVAN_TOKEN_VRG: ${BHUVAN_TOKEN_VRG:-}
+      BHOONIDHI_USER: ${BHOONIDHI_USER:-}
+      BHOONIDHI_PASSWORD: ${BHOONIDHI_PASSWORD:-}
+      BHOONIDHI_LIVE_DOWNLOAD: ${BHOONIDHI_LIVE_DOWNLOAD:-false}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

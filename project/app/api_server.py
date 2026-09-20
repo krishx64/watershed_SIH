@@ -71,7 +71,36 @@ def read_validation_log() -> list[dict]:
         return list(csv.DictReader(f))
 
 
-HOST = os.environ.get("HOST", "0.0.0.0")
+def _resolve_bind_host() -> str:
+    """Choose the interface to bind.
+
+    A generic `HOST` env var is a trap on container platforms: it is often set
+    to the service's public domain (e.g. HOST=myapp.up.railway.app), which is
+    not a local interface, so ThreadingHTTPServer raises
+    `socket.gaierror: [Errno -2] Name or service not known` at bind. Prefer an
+    explicit BIND_HOST, accept HOST only when it is a real local address, and
+    otherwise fall back to all interfaces.
+    """
+    import ipaddress
+
+    for name in ("BIND_HOST", "HOST"):
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            continue
+        if raw == "localhost":
+            return raw
+        try:
+            ipaddress.ip_address(raw)
+            return raw
+        except ValueError:
+            print(
+                f"--> [Server] Ignoring non-bindable {name}={raw!r}; binding 0.0.0.0 instead.",
+                flush=True,
+            )
+    return "0.0.0.0"
+
+
+HOST = _resolve_bind_host()
 PORT = int(os.environ.get("PORT", 8000))
 MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
 

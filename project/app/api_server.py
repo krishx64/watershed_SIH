@@ -409,13 +409,24 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
 
+    @staticmethod
+    def _live_demo_path(path: str) -> str:
+        """Map /demo-data/custom_live* to the /api/images/* byte-cache route.
+
+        Mirrors next.config.ts's rewrite, which a static export cannot apply
+        itself. Without it, committed pre-run files under
+        web/public/demo-data/custom_live*/ shadow every fresh result.
+        """
+        live = re.match(r"^/demo-data/(custom_live[^/]*)/(.+)$", path)
+        return f"/api/images/{live.group(1)}/{live.group(2)}" if live else path
+
     def do_HEAD(self):
         # HTTP requires HEAD to mirror GET (headers only, no body). Platforms,
         # health checks and link-preview/uptime bots send HEAD; without this,
         # BaseHTTPRequestHandler replies 501 Unsupported method.
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] --> Incoming HEAD {self.path}", flush=True)
-        path = urlparse(self.path).path
+        path = self._live_demo_path(urlparse(self.path).path)
 
         if STATIC_DIR is not None and not (path == "/api" or path.startswith("/api/")):
             if self._serve_static(path, head_only=True):
@@ -430,17 +441,7 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] --> Incoming GET {self.path}", flush=True)
         parsed = urlparse(self.path)
-        path = parsed.path
-
-        # Live custom runs are served from the in-memory byte cache, never from
-        # the static export. This mirrors next.config.ts's rewrite
-        # (/demo-data/custom_live* -> /api/images/*), which a static export
-        # cannot apply itself. Without it, the committed pre-run files under
-        # web/public/demo-data/custom_live*/ shadow every fresh result, so the
-        # UI keeps showing a stale run for every location.
-        live = re.match(r"^/demo-data/(custom_live[^/]*)/(.+)$", path)
-        if live:
-            path = f"/api/images/{live.group(1)}/{live.group(2)}"
+        path = self._live_demo_path(parsed.path)
 
         # In the Docker image the Python server also serves the Next.js static
         # export (STATIC_DIR). Every non-/api path is a static asset, including

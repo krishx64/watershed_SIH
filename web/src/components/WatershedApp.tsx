@@ -77,7 +77,10 @@ export default function WatershedApp() {
     const startTime = Date.now();
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/pipeline/run", {
+      // Relative URL: same-origin in the Docker image (Python serves both the
+      // static export and /api), and proxied to the API server by next.config's
+      // dev rewrite when running the two servers locally.
+      const res = await fetch("/api/pipeline/run", {
         method: "POST",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },

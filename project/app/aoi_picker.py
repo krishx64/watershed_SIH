@@ -24,7 +24,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import numpy as np
 import requests
-import streamlit as st
+
+# streamlit is only needed for the UI functions (render_picker). The backend
+# import path (api_server -> bbox_around/geocode/run_pipeline) must not pull it
+# in, so the Docker image can omit streamlit and still run the API. The pure
+# functions below never touch `st`.
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 from config import AOI_CENTER_LAT, AOI_CENTER_LON, AOI_NAME, DATA_PROCESSED
 from data_download import search_scene, clip_scene_to_stack

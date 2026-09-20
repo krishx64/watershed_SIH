@@ -8,6 +8,8 @@ Runs with:
 """
 
 import json
+import mimetypes
+import os
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -39,9 +41,23 @@ import intervention_registry as reg
 from geo_photo import read_validation_log
 from cache_manager import cache
 
-PORT = 8000
+PORT = int(os.environ.get("PORT", 8000))
+HOST = os.environ.get("HOST", "0.0.0.0")
 MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
-WEB_DEMO_DIR = PROJECT_ROOT.parent / "web" / "public" / "demo-data"
+
+# Where generated demo-data (PNGs + meta.json) is written and read back from.
+# Local dev keeps the current web/public/demo-data so `next dev` serves it;
+# the Docker image sets DEMO_DATA_DIR to the served static export directory.
+WEB_DEMO_DIR = (
+    Path(os.environ["DEMO_DATA_DIR"]).resolve()
+    if os.environ.get("DEMO_DATA_DIR")
+    else PROJECT_ROOT.parent / "web" / "public" / "demo-data"
+)
+
+# Optional: serve the Next.js static export (web/out) directly from this
+# process in the Docker image, so one container serves the whole app with no
+# CORS or second service. Unset in local dev (Next dev server owns the UI).
+STATIC_DIR = Path(os.environ["STATIC_DIR"]).resolve() if os.environ.get("STATIC_DIR") else None
 
 # Global cached model
 _cached_model = None
@@ -122,6 +138,13 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         print(f"[{timestamp}] --> Incoming GET {self.path}", flush=True)
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # In the Docker image the Python server also serves the Next.js static
+        # export (STATIC_DIR). Every non-/api path is a static asset, including
+        # "/" -> index.html. Local dev leaves STATIC_DIR unset, so Next owns this.
+        if STATIC_DIR is not None and not (path == "/api" or path.startswith("/api/")):
+            if self._serve_static(path):
+                return
 
         if path == "/" or path == "/api":
             data = {
@@ -434,6 +457,63 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         else:
             self._respond_json(404, {"error": f"Endpoint '{path}' not found"})
 
+    def _serve_static(self, url_path: str) -> bool:
+        """Serve a file from STATIC_DIR (the Next.js static export). Mirrors
+        `try_files $uri $uri.html $uri/` from Next's nginx example, since the
+        export emits route.html rather than route/index.html when
+        trailingSlash is false. Returns True if a response was sent."""
+        if STATIC_DIR is None:
+            return False
+
+        rel = url_path.lstrip("/") or "index.html"
+        try:
+            target = (STATIC_DIR / rel).resolve()
+        except (OSError, ValueError):
+            return False
+
+        # Refuse path traversal outside the export root.
+        if target != STATIC_DIR and STATIC_DIR not in target.parents:
+            return False
+
+        if target.is_file():
+            return self._send_file(target)
+
+        if target.with_suffix(".html").is_file():
+            return self._send_file(target.with_suffix(".html"))
+
+        if (target / "index.html").is_file():
+            return self._send_file(target / "index.html")
+
+        not_found = STATIC_DIR / "404.html"
+        if not_found.is_file():
+            return self._send_file(not_found, status_code=404)
+
+        return False
+
+    def _send_file(self, file_path: Path, status_code: int = 200) -> bool:
+        try:
+            data = file_path.read_bytes()
+        except OSError:
+            return False
+
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        if content_type is None:
+            content_type = "application/octet-stream"
+        if content_type.startswith("text/") or content_type in (
+            "application/javascript",
+            "application/json",
+            "image/svg+xml",
+        ):
+            content_type += "; charset=utf-8"
+
+        self.send_response(status_code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self._send_cors_headers()
+        self.end_headers()
+        self.wfile.write(data)
+        return True
+
     def _respond_json(self, status_code: int, data: any):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
@@ -443,10 +523,12 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
 
 
 def run():
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), WatershedApiHandler)
+    server = ThreadingHTTPServer((HOST, PORT), WatershedApiHandler)
     server.daemon_threads = True
     print("=" * 60)
-    print(f"  Watershed Signal Python API running on http://127.0.0.1:{PORT}")
+    print(f"  Watershed Signal Python API running on http://{HOST}:{PORT}")
+    if STATIC_DIR is not None:
+        print(f"  Serving static export from {STATIC_DIR}")
     print("  Endpoints: /api/health | /api/interventions | /api/pipeline/run")
     print("=" * 60)
     try:

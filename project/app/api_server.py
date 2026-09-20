@@ -72,7 +72,36 @@ def read_validation_log() -> list[dict]:
         return list(csv.DictReader(f))
 
 
-HOST = os.environ.get("HOST", "0.0.0.0")
+def _resolve_bind_host() -> str:
+    """Choose the interface to bind.
+
+    A generic `HOST` env var is a trap on container platforms: it is often set
+    to the service's public domain (e.g. HOST=myapp.up.railway.app), which is
+    not a local interface, so ThreadingHTTPServer raises
+    `socket.gaierror: [Errno -2] Name or service not known` at bind. Prefer an
+    explicit BIND_HOST, accept HOST only when it is a real local address, and
+    otherwise fall back to all interfaces.
+    """
+    import ipaddress
+
+    for name in ("BIND_HOST", "HOST"):
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            continue
+        if raw == "localhost":
+            return raw
+        try:
+            ipaddress.ip_address(raw)
+            return raw
+        except ValueError:
+            print(
+                f"--> [Server] Ignoring non-bindable {name}={raw!r}; binding 0.0.0.0 instead.",
+                flush=True,
+            )
+    return "0.0.0.0"
+
+
+HOST = _resolve_bind_host()
 PORT = int(os.environ.get("PORT", 8000))
 MODEL1_PATH = MODELS_DIR / "model1_lulc_unet.pt"
 
@@ -377,6 +406,23 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] --> CORS preflight OPTIONS {self.path}", flush=True)
         self.send_response(204)
+        self._send_cors_headers()
+        self.end_headers()
+
+    def do_HEAD(self):
+        # HTTP requires HEAD to mirror GET (headers only, no body). Platforms,
+        # health checks and link-preview/uptime bots send HEAD; without this,
+        # BaseHTTPRequestHandler replies 501 Unsupported method.
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] --> Incoming HEAD {self.path}", flush=True)
+        path = urlparse(self.path).path
+
+        if STATIC_DIR is not None and not (path == "/api" or path.startswith("/api/")):
+            if self._serve_static(path, head_only=True):
+                return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
         self._send_cors_headers()
         self.end_headers()
 
@@ -1149,7 +1195,7 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
         else:
             self._respond_json(404, {"error": f"Endpoint '{path}' not found"})
 
-    def _serve_static(self, url_path: str) -> bool:
+    def _serve_static(self, url_path: str, head_only: bool = False) -> bool:
         """Serve a file from STATIC_DIR (the Next.js static export). Mirrors
         `try_files $uri $uri.html $uri/` from Next's nginx example, since the
         export emits route.html rather than route/index.html when
@@ -1168,25 +1214,33 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
             return False
 
         if target.is_file():
-            return self._send_file(target)
+            return self._send_file(target, head_only=head_only)
 
         if target.with_suffix(".html").is_file():
-            return self._send_file(target.with_suffix(".html"))
+            return self._send_file(target.with_suffix(".html"), head_only=head_only)
 
         if (target / "index.html").is_file():
-            return self._send_file(target / "index.html")
+            return self._send_file(target / "index.html", head_only=head_only)
 
         not_found = STATIC_DIR / "404.html"
         if not_found.is_file():
-            return self._send_file(not_found, status_code=404)
+            return self._send_file(not_found, status_code=404, head_only=head_only)
 
         return False
 
-    def _send_file(self, file_path: Path, status_code: int = 200) -> bool:
-        try:
-            data = file_path.read_bytes()
-        except OSError:
-            return False
+    def _send_file(self, file_path: Path, status_code: int = 200, head_only: bool = False) -> bool:
+        if head_only:
+            try:
+                size = file_path.stat().st_size
+            except OSError:
+                return False
+            data = None
+        else:
+            try:
+                data = file_path.read_bytes()
+            except OSError:
+                return False
+            size = len(data)
 
         content_type, _ = mimetypes.guess_type(str(file_path))
         if content_type is None:
@@ -1200,10 +1254,11 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
 
         self.send_response(status_code)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Length", str(size))
         self._send_cors_headers()
         self.end_headers()
-        self.wfile.write(data)
+        if data is not None:
+            self.wfile.write(data)
         return True
 
     def _respond_json(self, status_code: int, data: any):

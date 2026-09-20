@@ -227,7 +227,7 @@ export default function ValidationTab({ meta }: { meta?: any }) {
         </div>
 
         <p className="text-xs text-foreground/90 leading-relaxed">
-          The Watershed Signal pipeline supports multi-tier dual ingestion: official Indian government sources (ISRO Bhuvan REST APIs &amp; Bhoonidhi Resourcesat-2A satellite data) with automated high-availability fallback to AWS S3 open data (Copernicus Sentinel-2 &amp; 30m DEM).
+          The GeoDhara pipeline supports multi-tier dual ingestion: official Indian government sources (ISRO Bhuvan REST APIs &amp; Bhoonidhi Resourcesat-2A satellite data) with automated high-availability fallback to AWS S3 open data (Copernicus Sentinel-2 &amp; 30m DEM).
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-xs font-mono">

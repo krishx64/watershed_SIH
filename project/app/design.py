@@ -1,5 +1,5 @@
 """
-Design system for the Watershed Signal app -- an "official government
+Design system for the GeoDhara app -- an "official government
 report" aesthetic: white page, navy institutional identity, serif display
 type for gazette-like gravitas, a letterhead masthead, and every number set
 in mono type like a survey readout.
@@ -69,7 +69,7 @@ def _cached_logo_data_uri() -> str:
 
 
 def render_logo(size: int = 40) -> str:
-    return f'<img src="{_logo_data_uri()}" width="{size}" height="{size}" alt="Watershed Signal" style="display:block;">'
+    return f'<img src="{_logo_data_uri()}" width="{size}" height="{size}" alt="GeoDhara" style="display:block;">'
 
 
 def inject_css() -> str:

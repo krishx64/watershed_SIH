@@ -1,5 +1,5 @@
 """
-Watershed Signal — PS-26015 demo app.
+GeoDhara — PS-26015 demo app.
 
 Wraps the trained pipeline (Model 1 LULC U-Net, Tier-1 rule-based change
 detection, rule-based recommendation engine) in an interactive UI. A single
@@ -42,7 +42,7 @@ from geo_photo import render_field_verification_tab, read_validation_log
 import intervention_registry as reg
 
 st.set_page_config(
-    page_title="Watershed Signal · PS-26015", layout="wide",
+    page_title="GeoDhara · PS-26015", layout="wide",
     page_icon=str(design.LOGO_PATH),
 )
 st.html(design.inject_css())
@@ -74,7 +74,7 @@ def load_model1():
 st.sidebar.html(
     f'<div style="display:flex; align-items:center; gap:10px;">'
     f'{design.render_logo(30)}'
-    f'<div style="font-family:{design.FONT_DISPLAY}; font-size:20px; font-weight:700;">Watershed Signal</div>'
+    f'<div style="font-family:{design.FONT_DISPLAY}; font-size:20px; font-weight:700;">GeoDhara</div>'
     f'</div>'
     f'<div class="wsig-eyebrow" style="margin-top:6px;">Model intake</div>'
 )

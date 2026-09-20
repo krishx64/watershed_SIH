@@ -1,5 +1,5 @@
 """
-Watershed Signal — Hugging Face Gradio + FastAPI Bridge (PS-26015).
+GeoDhara — Hugging Face Gradio + FastAPI Bridge (PS-26015).
 Runs on Hugging Face Spaces (CPU Basic: 16 GB RAM + 2 vCPUs, 100% Free).
 Serves both an interactive Gradio UI and REST API endpoints for Next.js web client.
 """
@@ -109,7 +109,7 @@ def read_validation_log() -> list[dict]:
 
 
 # ---- FastAPI REST Server ----
-app = FastAPI(title="Watershed Signal API Bridge", version="1.0.0")
+app = FastAPI(title="GeoDhara API Bridge", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -270,12 +270,12 @@ def gradio_run_demo(lat: float, lon: float, radius_km: float):
         return None, None, f"**Error**: {str(e)}"
 
 
-with gr.Blocks(title="Watershed Signal API Bridge") as demo:
+with gr.Blocks(title="GeoDhara API Bridge") as demo:
     gr.Markdown(
         """
-        # 🌊 Watershed Signal — API Bridge & Pipeline
+        # 🌊 GeoDhara — API Bridge & Pipeline
         ### Smart India Hackathon 2026 (PS-26015)
-        This Hugging Face Space powers the live AI backend for the **Watershed Signal** Next.js application with 16 GB RAM and 2 vCPUs.
+        This Hugging Face Space powers the live AI backend for the **GeoDhara** Next.js application with 16 GB RAM and 2 vCPUs.
         
         - **REST API URL**: `https://<your-space>.hf.space/api/pipeline/run`
         - **Health Check**: `https://<your-space>.hf.space/api/health`

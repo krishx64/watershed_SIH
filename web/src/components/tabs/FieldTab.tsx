@@ -153,6 +153,7 @@ export default function FieldTab({
   const [matchedSite, setMatchedSite] = useState<string | null>(null);
   const [predictedClass, setPredictedClass] = useState<string | null>(null);
   const [activeStation, setActiveStation] = useState<GroundStation | null>(null);
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(null);
   const [userStationPhotos, setUserStationPhotos] = useState<Record<string, { photoUrl: string; timestamp: string }>>({});
   const [note, setNote] = useState("");
   const [log, setLog] = useState<ValidationEntry[]>([]);
@@ -281,9 +282,8 @@ export default function FieldTab({
     async (targetLat: number, targetLon: number, station?: GroundStation) => {
       setStatus("reading");
       setCoords({ lat: targetLat, lon: targetLon });
-      setMatchedSite(null);
-      setPredictedClass(null);
       setActiveStation(station || null);
+      if (station) setCustomPhotoUrl(null); // Clear custom photo if we switch to a specific station
 
       if (station) {
         setNote(station.actionNote || "");
@@ -331,20 +331,47 @@ export default function FieldTab({
   }, [stations, coords, inspectCoordinate]);
 
   const handleFile = useCallback(
-    async (file: File) => {
+    async (file: File, station?: GroundStation) => {
       setStatus("reading");
-      setCoords(null);
-      setMatchedSite(null);
-      setPredictedClass(null);
-      setActiveStation(null);
+      // Preserve existing state to prevent UI flicker
 
-      const exifr = (await import("exifr")).default;
-      const gps = await exifr.gps(file).catch(() => null);
-      if (!gps || typeof gps.latitude !== "number") {
-        setStatus("no-gps");
-        return;
-      }
-      inspectCoordinate(gps.latitude, gps.longitude);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64 = (e.target?.result as string).split(',')[1];
+          if (!station) {
+            setCustomPhotoUrl(URL.createObjectURL(file));
+          }
+          const res = await fetch('http://localhost:8000/api/geo-photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, content: base64 })
+          });
+          const data = await res.json();
+          if (data.photo_id) {
+            // Resolve context
+            const resCtx = await fetch(`http://localhost:8000/api/geo-photos/${data.photo_id}/resolve`, { method: 'POST' });
+            const ctx = await resCtx.json();
+            if (ctx.latitude && ctx.longitude) {
+               inspectCoordinate(ctx.latitude, ctx.longitude, station);
+            } else if (station) {
+               // Fallback: If no GPS but uploaded to a station, use station coords
+               inspectCoordinate(station.lat, station.lon, station);
+            } else {
+               setStatus("no-gps");
+            }
+          } else {
+            // Restore done if fallback failed
+            setStatus(coords ? "done" : "no-gps");
+            alert("No GPS data found. Try a geo-tagged photo or select a Ground Station.");
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus(coords ? "done" : "error");
+          alert("Error analyzing photo.");
+        }
+      };
+      reader.readAsDataURL(file);
     },
     [inspectCoordinate]
   );
@@ -472,7 +499,7 @@ export default function FieldTab({
 
   const isCurrentPhotoAvailable = activeStation
     ? Boolean(activeStation.hasPhoto || userStationPhotos[activeStation.id])
-    : false;
+    : Boolean(customPhotoUrl);
 
   return (
     <div className="space-y-8">
@@ -575,8 +602,15 @@ export default function FieldTab({
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_22rem]">
         <div>
           {/* Active Evidence Dossier Card */}
-          {status === "done" && coords && (
-            <div className="mb-6 rounded-2xl border border-foreground/15 bg-background p-6 shadow-md animate-in fade-in duration-300">
+          {(status === "done" || status === "reading") && coords && (
+            <div className="mb-6 rounded-2xl border border-foreground/15 bg-background p-6 shadow-md animate-in fade-in duration-300 relative overflow-hidden">
+              {status === "reading" && (
+                <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+                  <div className="rounded-full bg-foreground/10 px-4 py-2 text-sm font-semibold flex items-center gap-2 animate-pulse">
+                    Analyzing photo & matching satellite data...
+                  </div>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/10 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
@@ -697,6 +731,7 @@ export default function FieldTab({
                     </p>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => stationPhotoInputRef.current?.click()}
                         className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:border-foreground/40 transition-colors cursor-pointer"
                       >
@@ -705,6 +740,7 @@ export default function FieldTab({
                       </button>
                       {activeStation && (
                         <button
+                          type="button"
                           onClick={() => simulateCapturePhoto(activeStation.id)}
                           className="flex items-center gap-1.5 rounded-lg bg-sky-500/15 border border-sky-500/30 px-3 py-1.5 text-xs font-semibold text-sky-400 hover:bg-sky-500/25 transition-colors cursor-pointer"
                         >
@@ -720,8 +756,11 @@ export default function FieldTab({
                       className="hidden"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
-                        if (f && activeStation) {
-                          attachStationPhoto(activeStation.id, f);
+                        if (f) {
+                          if (activeStation) {
+                            attachStationPhoto(activeStation.id, f);
+                          }
+                          handleFile(f, activeStation || undefined);
                         }
                       }}
                     />
@@ -746,7 +785,7 @@ export default function FieldTab({
                     <div className="relative h-24 w-40 overflow-hidden rounded-lg border border-foreground/15 bg-foreground/5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={userStationPhotos[activeStation?.id || ""]?.photoUrl || activeStation?.photoUrl}
+                        src={activeStation ? (userStationPhotos[activeStation.id]?.photoUrl || activeStation.photoUrl) : customPhotoUrl!}
                         alt="Field ground reality"
                         className="h-full w-full object-cover"
                       />

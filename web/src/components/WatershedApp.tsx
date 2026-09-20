@@ -346,7 +346,7 @@ export default function WatershedApp() {
           </h2>
 
           <p className="mt-3 max-w-2xl font-sans text-sm sm:text-base text-muted-foreground leading-relaxed">
-            Watershed Signal requires institutional authorization to access operational satellite rasters, DEM hydrology pipelines, and AI land-cover models. Choose an access role below to log in:
+            GeoDhara requires institutional authorization to access operational satellite rasters, DEM hydrology pipelines, and AI land-cover models. Choose an access role below to log in:
           </p>
 
           <div className="mt-8 grid w-full gap-5 sm:grid-cols-2 text-left">

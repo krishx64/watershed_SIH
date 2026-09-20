@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import WatershedApp from "@/components/WatershedApp";
 
 export const metadata: Metadata = {
-  title: "Try it — Watershed Signal",
+  title: "Try it — GeoDhara",
   description:
     "Operational geospatial intelligence console for watershed analysis. Land cover segmentation, change detection, hydrological health, and field photo verification.",
 };

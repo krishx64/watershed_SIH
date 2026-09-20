@@ -149,7 +149,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <span>Authentication Required</span>
             </div>
             <p className="mt-1 font-sans text-xs text-muted-foreground">
-              Entry is restricted. Choose an institutional role below or log in with credentials to enter Watershed Signal.
+              Entry is restricted. Choose an institutional role below or log in with credentials to enter GeoDhara.
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-# Watershed Signal — Web GIS Frontend
+# GeoDhara — Web GIS Frontend
 
 A high-performance, modern Next.js Web GIS application for **Smart India Hackathon 2026 — PS-26015** (Ministry of Rural Development).
 

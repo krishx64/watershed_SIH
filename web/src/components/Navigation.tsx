@@ -63,7 +63,7 @@ export default function Navigation() {
         >
           <div className="flex items-center gap-3 sm:gap-4">
             <Link href="/" className="font-sans text-lg font-semibold tracking-tight text-foreground">
-              Watershed Signal
+              GeoDhara
             </Link>
             <button
               onClick={() => setShowModelModal(true)}

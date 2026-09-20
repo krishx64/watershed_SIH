@@ -109,7 +109,7 @@ export default function RegisterPage() {
           </div>
 
           <p className="mt-4 font-sans text-sm text-muted-foreground leading-relaxed">
-            Register your institutional profile with Watershed Signal to record geocoded field inspections, manage watershed interventions, and log statutory spatial analysis.
+            Register your institutional profile with GeoDhara to record geocoded field inspections, manage watershed interventions, and log statutory spatial analysis.
           </p>
 
           {errorMsg && (

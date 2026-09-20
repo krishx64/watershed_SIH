@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Badge from "@/components/ui/Badge";
 
 export const metadata: Metadata = {
-  title: "About — Watershed Signal",
+  title: "About — GeoDhara",
   description: "PS-26015 architecture, trained sites, and data sources.",
 };
 

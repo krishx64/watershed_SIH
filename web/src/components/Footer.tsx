@@ -37,7 +37,7 @@ export default function Footer() {
     <footer className="dot-grid-bg relative border-t border-foreground/10">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-10 px-6 py-16 sm:px-10 md:grid-cols-5">
         <div className="col-span-2">
-          <div className="font-display text-2xl tracking-tight">Watershed Signal</div>
+          <div className="font-display text-2xl tracking-tight">GeoDhara</div>
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
             Geospatial land-cover and change detection for watershed development, built for
             SIH 2026 PS-26015.
@@ -66,7 +66,7 @@ export default function Footer() {
         ))}
       </div>
       <div className="mx-auto max-w-7xl border-t border-foreground/10 px-6 py-6 text-xs text-muted-foreground sm:px-10">
-        Watershed Signal — Ministry of Rural Development, Smart India Hackathon 2026.
+        GeoDhara — Ministry of Rural Development, Smart India Hackathon 2026.
       </div>
     </footer>
   );

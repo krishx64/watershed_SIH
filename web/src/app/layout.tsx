@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Watershed Signal — Geospatial Watershed Intelligence",
+  title: "GeoDhara — Geospatial Watershed Intelligence",
   description:
     "PS-26015, Smart India Hackathon 2026. Land-cover classification, change detection, and watershed condition scoring from free satellite imagery.",
 };

@@ -42,6 +42,7 @@ web/node_modules/
 web/.next/
 web/out/
 web/next-env.d.ts
+web/public/demo-data/custom_live/
 web/public/demo-data/custom_live_20/
 
 
@@ -60,4 +61,12 @@ Desktop.ini
 .env
 *.env
 .env.*
+!.env.example
+!*.env.example
 .vercel
+
+
+project/bhoonidhi_data/
+project/data/
+
+scratch/

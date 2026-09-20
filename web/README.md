@@ -4,18 +4,19 @@ A high-performance, modern Next.js Web GIS application for **Smart India Hackath
 
 ---
 
-## Tab Architecture (8 Tabs)
+## Tab Architecture (9 Tabs)
 
 | Tab | Key | Description |
 |---|---|---|
 | Land Cover | `land-cover` | Interactive split-slider comparing T1 baseline vs. T2 raster, per-class hectare breakdown |
 | Change | `change` | Structural change detection with informational banner explaining seasonal crop filtering |
 | Health & Alerts | `health` | 4 sub-index diagnostic cards (Water Storage, Canopy & Biomass, Soil Stability, 5-Yr Resilience) + alerts with quantifiable evidence bullets + formula accordion |
-| Map | `map` | Leaflet/MapLibre dynamic layer with Copernicus DEM catchment overlay |
+| Map | `map` | Leaflet/MapLibre dynamic layer with Copernicus DEM catchment overlay and physical metric radius |
 | Field Investigation | `field` | Complete end-to-end geo-photo pipeline: EXIF GPS extraction, unified observation assessment card, multi-signal evidence fusion, photo integrity tracking, and field log CSV export |
 | Investigation | `investigation` | Catchment diagnostic analysis: *What is Changed / Affected* pillars + *Recommended Engineering Changes* with AOI-clamped structure coordinates (zero "OUTSIDE AOI" errors) |
 | What-If Simulator | `simulator` | Dedicated standalone policy simulator with 4 sliders, 1-click strategy presets, live recharge/soil/water-table projections, land cover transition matrix, and ROI table |
 | Scientific Validation | `validation` | Peer-grade empirical metrics: LULC accuracy (82.6%) & mIoU (61.4%), Change Detection validation (0.911 F1), photo agreement log (86.7%), and government data adapter architecture seam |
+| Bhuvan Ground-Truth | `bhuvan-report` | Official ISRO Bhuvan 1:50,000 Thematic LULC Ground-Truth Cross-Validation Report: tripartite sign-offs (NRSC, MoRD, Lead), live link to Bhuvan IWMP GIS portal, 73.3% overall convergence (97.1% agriculture), and executive print engine (`@media print`) |
 
 **Zero emojis rule**: all icons are `@phosphor-icons/react` SVG only — enforced across all components.
 
@@ -97,5 +98,6 @@ web/src/components/tabs/
 ├── FieldTab.tsx         — Field Investigation with photo integrity logic & Unified Observation Card
 ├── InterventionsTab.tsx — Investigation: affected area + engineering recommendations
 ├── SimulatorTab.tsx     — Dedicated What-If policy simulator
-└── ValidationTab.tsx    — Scientific validation metrics & government data adapter design
+├── ValidationTab.tsx    — Scientific validation metrics & data adapter seams
+└── BhuvanReportTab.tsx  — ISRO Bhuvan official ground-truth cross-validation report with print engine
 ```

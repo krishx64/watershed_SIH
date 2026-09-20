@@ -134,3 +134,33 @@ together when reporting status.
     Never claim "Official Watershed Boundary" unless authorized government vector layers are loaded.
     Position the system as an analytical decision-support layer sitting on top of SRISHTI-DRISHTI,
     Bhuvan, and Bhoonidhi using the adapter contracts defined in `data_adapter_design.md`.
+
+17. **Zero public directory writes & Redis in-memory raster caching.** Never save transient
+    pipeline outputs (`t1.png`, `t2.png`, `change.png`, `watershed_boundary.png`, `drainage_network.png`,
+    `classmap_*.png`, `meta.json`) to the `web/public/` directory on disk. All generated rasters
+    must be stored directly in Redis (`redis:alpine`) or in-memory LRU under `image:{site_key}:{filename}`
+    with a 24-hour TTL, streamed via `GET /api/images/{site_key}/{image_name}` and mapped in Next.js
+    via rewrite rules (`/demo-data/:site(custom_live[^/]*)/:file*` -> `/api/images/...`).
+    Only static pre-packaged demo benchmarks (`kadwanchi_watershed`, `tamhini_ghat_forest`, etc.)
+    reside on disk.
+
+18. **Strict Month & Year temporal selection.** Never provide or prompt for specific daily date
+    pickers (`type="date"`). Optical satellite revisit orbits (5–24 days) and cloud masking make
+    daily selections physically unrealistic. All temporal inputs must strictly accept **Month & Year**
+    (`YYYY-MM` via `type="month"`) or seasonal presets (Pre-Monsoon, Post-Monsoon, Kharif Peak, Summer Dry,
+    5-Year Baseline).
+
+19. **ISRO Bhuvan official ground-truth report & geoportal links.** The 9th tab (`bhuvan-report`)
+    presents official tripartite cross-validation against ISRO Bhuvan 1:50,000 thematic land cover.
+    The live Bhuvan IWMP GIS geoportal URL must strictly be `https://bhuvan-app1.nrsc.gov.in/iwmp/`.
+    The report must support high-contrast official `@media print` layout and tripartite sign-offs
+    (NRSC/ISRO, MoRD/WDC-PMKSY, Project Lead).
+
+20. **3-Tier Satellite Ingestion & MongoDB GridFS Raster Caching.** The optical satellite ingestion seam
+    (`project/src/data_adapter.py`) enforces a strict 3-tier hierarchy:
+    - **Tier 0**: MongoDB GridFS pre-clipped 6-channel float32 cache (`watershed_db.raster_cache`, <50ms read/write).
+    - **Tier 1**: ISRO Bhoonidhi STAC catalog & Resourcesat-2/2A LISS-III `/vsizip/` streaming (`bhoonidhi_client.py`)
+      with 1200s token caching and a 15s download circuit breaker.
+    - **Tier 2**: Hardened AWS Open Data Sentinel-2 L2A COG range-reading (`data_download.py`) using
+      `GDAL_HTTP_VERSION: "1.1"`, `GDAL_HTTP_MULTIPLEX: "NO"`, and a 12s socket timeout to prevent network stalls.
+    All ingestion events must be recorded in `watershed_db.audit_logs` for statutory audit compliance.

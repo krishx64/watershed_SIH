@@ -5,7 +5,7 @@ const BACKEND_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.BACKEND_URL ||
-  "http://127.0.0.1:3000"
+  "http://127.0.0.1:8000"
 )
   .trim()
   .replace(/\/$/, "");
@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
       {
         source: "/api/:path*",
         destination: `${BACKEND_URL.replace(/\/$/, "")}/api/:path*`,
+      },
+      {
+        source: "/demo-data/:site(custom_live[^/]*)/:file*",
+        destination: `${BACKEND_URL.replace(/\/$/, "")}/api/images/:site/:file*`,
       },
     ];
   },

@@ -27,10 +27,10 @@ from evaluate import (
 FREEZE_ENCODER_EPOCHS = 5
 
 
-def build_model():
+def build_model(pretrained_encoder: bool = False):
     model = smp.Unet(
         encoder_name="resnet18",
-        encoder_weights="imagenet",
+        encoder_weights="imagenet" if pretrained_encoder else None,
         in_channels=IN_CHANNELS,
         classes=NUM_CLASSES,
     )
@@ -118,7 +118,7 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     print(f"Train tiles: {len(train_ds)}  Val tiles: {len(val_ds)}")
 
-    model = build_model().to(device)
+    model = build_model(pretrained_encoder=True).to(device)
     set_encoder_trainable(model, False)
 
     class_weights = compute_class_weights(train_ds, NUM_CLASSES).to(device)

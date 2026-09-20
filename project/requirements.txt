@@ -77,3 +77,6 @@ requests==2.34.2
 fastapi>=0.110.0
 uvicorn>=0.28.0
 gradio>=4.20.0
+python-dotenv>=1.0.0
+redis>=5.0.0
+pymongo>=4.10.0

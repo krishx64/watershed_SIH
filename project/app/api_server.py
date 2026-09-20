@@ -801,6 +801,7 @@ class WatershedApiHandler(BaseHTTPRequestHandler):
                 self._respond_json(400, {"error": "Missing required fields: name, lat, lon"})
                 return
 
+            import intervention_registry as reg
             iv_id = reg.add_intervention(name, type_, float(lat), float(lon), notes)
             try:
                 import audit_logger

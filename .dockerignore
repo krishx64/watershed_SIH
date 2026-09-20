@@ -1,0 +1,27 @@
+# Keep the build context small and prevent host artifacts from clobbering
+# freshly installed ones inside the image.
+
+# VCS / docs
+.git
+.gitignore
+*.md
+
+# Node / Next build artifacts (rebuilt in the web-builder stage)
+web/node_modules
+web/.next
+web/out
+web/tsconfig.tsbuildinfo
+
+# Python virtualenv and caches
+project/.venv
+**/__pycache__
+**/*.pyc
+
+# Local data / scratch (models/ IS included -- needed at runtime)
+project/data
+project/scratch_test_smooth.png
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store

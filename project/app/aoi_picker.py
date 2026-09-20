@@ -28,6 +28,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import requests
+
+# streamlit is only needed for the UI functions (render_picker). The backend
+# import path (api_server -> bbox_around/geocode/run_pipeline) must not pull it
+# in, so the Docker image can omit streamlit and still run the API. The pure
+# functions below never touch `st`.
 try:
     import streamlit as st
 except ImportError:

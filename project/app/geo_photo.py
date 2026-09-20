@@ -18,8 +18,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import numpy as np
-import streamlit as st
 from PIL import Image, ExifTags
+
+# streamlit is only needed for the UI (render_field_verification_tab). The API
+# server imports read_validation_log from here, which is pure CSV I/O, so the
+# Docker image can omit streamlit.
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 from config import DATA_PROCESSED, CLASS_NAMES, CLASS_COLORS, CHANGE_CLASS_NAMES, NODATA_CLASS
 from data_download import search_scene, clip_scene_to_stack

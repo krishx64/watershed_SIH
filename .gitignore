@@ -43,6 +43,7 @@ web/.next/
 web/out/
 web/next-env.d.ts
 web/public/demo-data/custom_live/
+web/public/demo-data/custom_live_20/
 
 
 # Editors / IDEs
@@ -60,6 +61,8 @@ Desktop.ini
 .env
 *.env
 .env.*
+!.env.example
+!*.env.example
 .vercel
 
 
@@ -67,3 +70,8 @@ judge_prep.md
 opencode.json
 PS26015 Complete Problem Statement Audit.md
 PS26015 Implementation vs Problem Statement Audit.md
+
+# Government satellite data & scratch work
+project/bhoonidhi_data/
+project/data/
+scratch/

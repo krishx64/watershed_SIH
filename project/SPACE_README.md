@@ -1,19 +1,17 @@
 ---
-title: Watershed Signal
+title: Watershed Signal API
 emoji: 🌊
 colorFrom: blue
 colorTo: gray
-sdk: docker
-app_port: 7860
+sdk: gradio
+app_file: app.py
 pinned: false
 ---
 
-# Watershed Signal — PS-26015
+# Watershed Signal — PS-26015 (Gradio + FastAPI Bridge)
 
-Geospatial watershed intelligence: land-cover classification, change
-detection, health scoring, and a rule-based recommendation engine over
-live Sentinel-2 imagery. Built for Smart India Hackathon 2026, PS-26015
-(Ministry of Rural Development).
-
-Pick a trained site or search/enter any Indian coordinates — imagery is
-fetched live and analyzed in ~20-60 seconds.
+Geospatial watershed intelligence API powering the Next.js frontend:
+- PyTorch U-Net 10m LULC Semantic Segmentation
+- Multi-temporal Change Detection
+- DEM Hydrological Catchment & Flow Routing (Copernicus 30m)
+- Health Scoring & Interventions

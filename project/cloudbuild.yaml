@@ -1,0 +1,54 @@
+# Google Cloud Build Pipeline for Watershed Signal Backend
+# Target: Artifact Registry & Cloud Run
+
+steps:
+  # 1. Build the Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend:${COMMIT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend:latest"
+      - "-f"
+      - "project/Dockerfile"
+      - "project/"
+
+  # 2. Push image to GCP Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend"
+
+  # 3. Deploy to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_NAME}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend:${COMMIT_SHA}"
+      - "--region=${_REGION}"
+      - "--port=8080"
+      - "--memory=2Gi"
+      - "--cpu=2"
+      - "--timeout=300s"
+      - "--concurrency=80"
+      - "--min-instances=0"
+      - "--max-instances=5"
+      - "--allow-unauthenticated"
+      - "--set-env-vars=HOST=0.0.0.0,PORT=8080"
+
+substitutions:
+  _REGION: "asia-south1"
+  _ARTIFACT_REPO: "watershed-repo"
+  _SERVICE_NAME: "watershed-backend"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend:${COMMIT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/watershed-backend:latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: "E2_HIGHCPU_8"

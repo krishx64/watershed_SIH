@@ -22,6 +22,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import requests
 
@@ -41,6 +45,8 @@ from inference_demo import predict_class_map
 from tier1_fallback import run_tier1
 from recommendation_engine import compute_health_score, generate_alerts, ndvi_trend
 
+_model_lock = threading.Lock()
+
 # watershed_delineation pulls in pysheds -> numba/llvmlite, which can fail to
 # install or import on a deploy platform's specific Python version (e.g.
 # numba only added Python 3.14 support in its 0.63.0 release -- a platform
@@ -51,9 +57,15 @@ from recommendation_engine import compute_health_score, generate_alerts, ndvi_tr
 # inside a try/except in run_pipeline below regardless, so this only adds
 # the same tolerance one level up, to the import itself.
 try:
-    from watershed_delineation import get_watershed_context
+    from watershed_delineation import (
+        get_watershed_context,
+        delineate_watershed_raw,
+        align_watershed_to_target,
+    )
 except ImportError as e:
     get_watershed_context = None
+    delineate_watershed_raw = None
+    align_watershed_to_target = None
     _watershed_import_error = e
 
 LIVE_DIR = DATA_PROCESSED / "live"
@@ -72,23 +84,108 @@ PRESET_AOIS = [
 ]
 
 
+# Curated Indian locations fast-path (instant 0ms response)
+INDIAN_LOCATION_PRESETS = {
+    "kadwanchi": (19.8830, 75.9910, "Kadwanchi Watershed, Jalna, Maharashtra"),
+    "nalhati": (24.2966, 87.8353, "Nalhati, Birbhum, West Bengal"),
+    "kolkata": (22.5726, 88.3639, "Kolkata, West Bengal"),
+    "pune": (18.5204, 73.8567, "Pune, Maharashtra"),
+    "jalna": (19.8410, 75.8864, "Jalna, Maharashtra"),
+    "tamhini": (18.4493, 73.4227, "Tamhini Ghat, Western Ghats, Maharashtra"),
+    "tamhini ghat": (18.4493, 73.4227, "Tamhini Ghat, Western Ghats, Maharashtra"),
+    "donimalai": (15.0589, 76.5937, "Donimalai Mine, Ballari, Karnataka"),
+    "jayakwadi": (19.4858, 75.3700, "Jayakwadi Dam, Godavari Basin, Maharashtra"),
+    "hiware bazar": (19.0333, 74.8333, "Hiware Bazar, Ahmednagar, Maharashtra"),
+    "ralegan siddhi": (18.9167, 74.4167, "Ralegan Siddhi, Ahmednagar, Maharashtra"),
+    "jamshedpur": (22.8046, 86.2029, "Jamshedpur, Jharkhand"),
+    "jaipur": (26.9124, 75.7873, "Jaipur, Rajasthan"),
+    "bhopal": (23.2599, 77.4126, "Bhopal, Madhya Pradesh"),
+    "mumbai": (19.0760, 72.8777, "Mumbai, Maharashtra"),
+    "delhi": (28.6139, 77.2090, "New Delhi, Delhi"),
+    "bengaluru": (12.9716, 77.5946, "Bengaluru, Karnataka"),
+    "bangalore": (12.9716, 77.5946, "Bengaluru, Karnataka"),
+    "hyderabad": (17.3850, 78.4867, "Hyderabad, Telangana"),
+    "chennai": (13.0827, 80.2707, "Chennai, Tamil Nadu"),
+}
+
+
+def _cache_geocode(clean_name: str, lat: float, lon: float, display_name: str):
+    try:
+        from cache_manager import cache
+        cache.set_json(f"geocode:{clean_name}", {"lat": lat, "lon": lon, "name": display_name}, ttl=604800)
+    except Exception:
+        pass
+
+
 def geocode(place_name: str):
-    """Free-text place name -> (lat, lon, display_name), via OpenStreetMap Nominatim. None if not found."""
-    resp = requests.get(
-        "https://nominatim.openstreetmap.org/search",
-        params={"q": place_name, "format": "json", "limit": 1, "countrycodes": "in", "accept-language": "en"},
-        headers={
-            "User-Agent": "watershed-signal-sih2026-demo/1.0 (hackathon prototype)",
-            "Accept-Language": "en-US,en;q=0.9",
-        },
-        timeout=10,
-    )
-    resp.raise_for_status()
-    results = resp.json()
-    if not results:
+    """Free-text place name -> (lat, lon, display_name) with fast multi-tier lookup:
+    1. Preset Indian watershed/city dictionary (0ms).
+    2. Redis / in-memory cache (<1ms).
+    3. OpenStreetMap Nominatim with strict timeout (2.5s).
+    4. Photon Komoot API fallback (fast 1s response).
+    """
+    clean = place_name.strip().lower()
+    if not clean:
         return None
-    name = results[0].get("name") or results[0].get("display_name", place_name).split(",")[0].strip()
-    return float(results[0]["lat"]), float(results[0]["lon"]), name
+
+    # Tier 1: Local curated preset dictionary (instant 0ms)
+    if clean in INDIAN_LOCATION_PRESETS:
+        print(f"--> [Geocode] Instant 0ms preset hit for '{clean}'", flush=True)
+        return INDIAN_LOCATION_PRESETS[clean]
+
+    # Tier 2: Check Redis / in-memory cache (<1ms)
+    try:
+        from cache_manager import cache
+        cached = cache.get_json(f"geocode:{clean}")
+        if cached and "lat" in cached and "lon" in cached:
+            print(f"--> [Geocode] Cache HIT for '{clean}' (<1ms)", flush=True)
+            return float(cached["lat"]), float(cached["lon"]), cached.get("name", place_name)
+    except Exception:
+        pass
+
+    # Tier 3: Nominatim with strict timeout (2.0s connect, 2.5s read)
+    try:
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": place_name, "format": "json", "limit": 1, "countrycodes": "in", "accept-language": "en"},
+            headers={
+                "User-Agent": "watershed-signal-sih2026-demo/1.0 (hackathon prototype)",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            timeout=(2.0, 2.5),
+        )
+        if resp.status_code == 200:
+            results = resp.json()
+            if results:
+                name = results[0].get("name") or results[0].get("display_name", place_name).split(",")[0].strip()
+                lat, lon = float(results[0]["lat"]), float(results[0]["lon"])
+                _cache_geocode(clean, lat, lon, name)
+                return lat, lon, name
+    except Exception as e:
+        print(f"--> [Geocode] Nominatim timed out ({e}), engaging fast Photon fallback...", flush=True)
+
+    # Tier 4: Photon fallback (fast secondary geocoder, ~1s)
+    try:
+        resp = requests.get(
+            "https://photon.komoot.io/api/",
+            params={"q": place_name, "limit": 1},
+            headers={"User-Agent": "watershed-signal/1.0"},
+            timeout=(2.0, 3.0),
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            features = data.get("features", [])
+            if features:
+                coords = features[0]["geometry"]["coordinates"]  # [lon, lat]
+                name = features[0]["properties"].get("name") or place_name
+                lon, lat = float(coords[0]), float(coords[1])
+                _cache_geocode(clean, lat, lon, name)
+                print(f"--> [Geocode] Photon fallback resolved '{clean}' -> ({lat:.4f}, {lon:.4f})", flush=True)
+                return lat, lon, name
+    except Exception as e:
+        print(f"--> [Geocode] Secondary geocoder failed: {e}", flush=True)
+
+    return None
 
 
 def bbox_around(lat: float, lon: float, half_km: float = HALF_KM):
@@ -97,65 +194,134 @@ def bbox_around(lat: float, lon: float, half_km: float = HALF_KM):
     return (lon - dlon, lat - dlat, lon + dlon, lat + dlat)
 
 
-def run_pipeline(bbox, label: str, model, device, on_step=None):
-    """Fetch T1+T2, build stacks, run Model 1 + Tier-1 change detection. Returns a result dict.
+import uuid
 
-    on_step(msg), if given, is called before each named stage so a caller can
-    surface live progress -- this pipeline takes 20-60s (two live satellite
-    fetches + two model passes), long enough that a single static spinner
-    leaves the user guessing whether it's stuck.
+
+def run_pipeline(bbox, label: str, model, device, on_step=None, t1_target=None, t2_target=None, cancel_check=None):
+    """Fetch T1+T2, build stacks, run Model 1 + Tier-1 change detection in parallel.
+
+    Uses ThreadPoolExecutor to concurrently:
+      1. Search, stream bands, build 6-channel stack, and infer for T1 (using t1_target timeline).
+      2. Search, stream bands, build 6-channel stack, and infer for T2 (using t2_target timeline).
+      3. Stream Copernicus DEM, compute flow directions and catchment delineation.
+    Uses an isolated run UUID so concurrent requests never collide on scratch rasters.
     """
+    def check_cancelled():
+        if cancel_check and (cancel_check() if callable(cancel_check) else cancel_check.is_set()):
+            raise InterruptedError("Pipeline execution cancelled by client")
+
     def step(msg):
+        check_cancelled()
         if on_step:
             on_step(msg)
 
-    results = {}
-    for date_tag in ("T1", "T2"):
-        step(f"Searching Sentinel-2 catalog for {date_tag} imagery...")
-        item = search_scene(bbox, date_tag)
-        raw_path = LIVE_DIR / f"{label}_{date_tag}_rgbnir.tif"
-        step(f"Downloading & clipping {date_tag} scene ({item.datetime.date()})...")
-        clip_scene_to_stack(item, bbox, raw_path)
-        stack_path = LIVE_DIR / f"{label}_{date_tag}_stack6.tif"
-        step(f"Computing NDVI / NDWI for {date_tag}...")
-        build_6channel_stack(raw_path, stack_path)
-        step(f"Running land-cover model on {date_tag}...")
-        class_map, img, profile = predict_class_map(model, stack_path, device)
-        results[date_tag] = {"class_map": class_map, "img": img, "profile": profile, "date": item.datetime.date()}
+    step("Launching multi-sensor ingestion (ISRO Bhoonidhi / Sentinel-2) + DEM hydrological analysis...")
 
-    # Real watershed boundary + drainage network, DEM-derived (see
-    # watershed_delineation.py) -- activates tier1_fallback.geofence_mask,
-    # which existed unused (always called with watershed_mask=None) since
-    # early in the project. DEM fetch is a new network dependency on top of
-    # the Sentinel-2 fetches above; a transient failure here shouldn't sink
-    # the whole AOI analysis, so it degrades gracefully to the pre-existing
-    # ungeofenced behavior rather than raising.
-    step("Delineating watershed boundary & drainage network (DEM)...")
-    watershed_mask = drainage_network = pour_point = watershed_caveat = None
-    if get_watershed_context is None:
-        watershed_caveat = (
-            f"Watershed boundary unavailable ({_watershed_import_error}) -- "
-            "change detection not geofenced."
+    scratch_id = uuid.uuid4().hex[:8]
+    created_scratch_files = []
+
+    def process_date(date_tag: str):
+        check_cancelled()
+        from data_adapter import load_or_fetch_optical_date
+        raw_path = LIVE_DIR / f"{label}_{scratch_id}_{date_tag}_rgbnir.tif"
+        stack_path = LIVE_DIR / f"{label}_{scratch_id}_{date_tag}_stack6.tif"
+        created_scratch_files.extend([raw_path, stack_path])
+        target_d = t1_target if date_tag == "T1" else t2_target
+        date_obj, source_label = load_or_fetch_optical_date(
+            bbox, date_tag, raw_path, stack_path, on_step=step, target_date=target_d, cancel_check=cancel_check
         )
-    else:
-        try:
-            watershed_context = get_watershed_context(bbox, results["T2"]["profile"])
-            watershed_mask = watershed_context["watershed_mask"]
-            drainage_network = watershed_context["drainage_network"]
-            pour_point = watershed_context["pour_point"]
-            watershed_caveat = watershed_context["caveat"]
-        except Exception as e:
-            watershed_caveat = f"Watershed boundary unavailable this run ({e}) -- change detection not geofenced."
+        check_cancelled()
+        step(f"[{date_tag}] Running land-cover model...")
+        with _model_lock:
+            check_cancelled()
+            class_map, img, profile = predict_class_map(model, stack_path, device)
+        return date_tag, {
+            "class_map": class_map,
+            "img": img,
+            "profile": profile,
+            "date": date_obj,
+            "source": source_label,
+        }
 
-    step("Comparing T1 vs T2 for changes...")
-    change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"], watershed_mask=watershed_mask)
-    step("Computing health score & NDVI trend...")
-    health = compute_health_score(results["T2"]["class_map"])
-    trend = ndvi_trend(results["T1"]["img"], results["T2"]["img"])
-    step("Generating alerts & recommendations...")
-    alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
-    return (results, change_map, health, trend, alerts,
-            watershed_mask, drainage_network, pour_point, watershed_caveat, watershed_context)
+    def process_dem():
+        check_cancelled()
+        if delineate_watershed_raw is None:
+            return None, (
+                f"Watershed boundary unavailable ({_watershed_import_error}) -- "
+                "change detection not geofenced."
+            )
+        try:
+            step("[DEM] Delineating watershed boundary & drainage network from Copernicus 30m DEM...")
+            check_cancelled()
+            raw = delineate_watershed_raw(bbox)
+            check_cancelled()
+            return raw, None
+        except Exception as e:
+            return None, f"Watershed boundary unavailable this run ({e}) -- change detection not geofenced."
+
+    results = {}
+    dem_raw = None
+    watershed_caveat = None
+
+    try:
+        # Run T1, T2, and DEM in parallel worker threads with instant cancellation polling
+        pool = ThreadPoolExecutor(max_workers=3)
+        future_t1 = pool.submit(process_date, "T1")
+        future_t2 = pool.submit(process_date, "T2")
+        future_dem = pool.submit(process_dem)
+        all_futures = [future_t1, future_t2, future_dem]
+
+        try:
+            # Poll every 100ms so cancellation unblocks the server instantaneously!
+            while not all(f.done() for f in all_futures):
+                check_cancelled()
+                time.sleep(0.1)
+
+            check_cancelled()
+            tag1, res1 = future_t1.result()
+            results[tag1] = res1
+            tag2, res2 = future_t2.result()
+            results[tag2] = res2
+            dem_raw, dem_err = future_dem.result()
+        except InterruptedError:
+            print(f"--> [Pipeline] Immediate pool shutdown triggered by cancellation.", flush=True)
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        else:
+            pool.shutdown(wait=True)
+
+        check_cancelled()
+
+        watershed_mask = drainage_network = pour_point = watershed_context = None
+        if dem_err:
+            watershed_caveat = dem_err
+        elif dem_raw is not None and align_watershed_to_target is not None:
+            try:
+                watershed_context = align_watershed_to_target(dem_raw, results["T2"]["profile"])
+                watershed_mask = watershed_context["watershed_mask"]
+                drainage_network = watershed_context["drainage_network"]
+                pour_point = watershed_context["pour_point"]
+                watershed_caveat = watershed_context["caveat"]
+            except Exception as e:
+                watershed_caveat = f"Watershed alignment error ({e}) -- change detection not geofenced."
+
+        check_cancelled()
+        step("Comparing T1 vs T2 for changes...")
+        change_map = run_tier1(results["T1"]["class_map"], results["T2"]["class_map"], watershed_mask=watershed_mask)
+        step("Computing health score & NDVI trend...")
+        health = compute_health_score(results["T2"]["class_map"])
+        trend = ndvi_trend(results["T1"]["img"], results["T2"]["img"])
+        step("Generating alerts & recommendations...")
+        alerts = generate_alerts(results["T2"]["class_map"], change_map, health, trend)
+        return (results, change_map, health, trend, alerts,
+                watershed_mask, drainage_network, pour_point, watershed_caveat, watershed_context)
+    finally:
+        # Clean up transient scratch rasters on disk (GridFS and Redis hold cached copies)
+        for p in created_scratch_files:
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def _set_active_aoi(key, display_name, lat, lon, trained, model, device, half_km: float = 1.0):

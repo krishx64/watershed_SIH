@@ -14,8 +14,7 @@ AOI-agnostic.
 """
 
 from pathlib import Path
-
-import rasterio
+import os
 
 # ---- Paths ----
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -33,15 +32,29 @@ def atomic_raster_write(out_path, data, profile, descriptions=None):
     """Write a raster to a temp path first, then atomically rename into place.
     Without this, a crash or interruption mid-write (killing the app,
     a network drop mid-download) can leave a truncated, corrupt file sitting
-    exactly at the path the rest of the pipeline trusts as complete -- it
-    opens fine (header/metadata reads OK) but fails on the actual pixel read
-    later, often in a totally different function, which is confusing to
-    debug. Hit for real in this project (see documentation.md) after several
-    abrupt session restarts left a truncated live-fetched raster on disk."""
+    exactly at the path the rest of the pipeline trusts as complete.
+    Uses a PID and UUID suffix so concurrent writes never clash on the temp file."""
+    import rasterio
+    import uuid
     out_path = Path(out_path)
-    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    tmp_path = out_path.with_suffix(f"{out_path.suffix}.tmp.{os.getpid()}.{uuid.uuid4().hex[:6]}")
+    # ponytail: ensure basic GTiff driver and dimension profile exists to prevent DriverRegistrationError
+    prof = (profile or {}).copy()
+    if "driver" not in prof:
+        prof["driver"] = "GTiff"
+    if "dtype" not in prof:
+        prof["dtype"] = str(data.dtype)
+    if "count" not in prof:
+        prof["count"] = data.shape[0] if data.ndim == 3 else 1
+    if "height" not in prof:
+        prof["height"] = data.shape[1] if data.ndim == 3 else data.shape[0]
+    if "width" not in prof:
+        prof["width"] = data.shape[2] if data.ndim == 3 else data.shape[1]
+    if "crs" not in prof:
+        prof["crs"] = "EPSG:4326"
+
     try:
-        with rasterio.open(tmp_path, "w", **profile) as dst:
+        with rasterio.open(tmp_path, "w", **prof) as dst:
             dst.write(data)
             if descriptions:
                 dst.descriptions = descriptions

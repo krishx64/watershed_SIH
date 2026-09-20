@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: watershed-signal-api
+    runtime: python
+    rootDir: project
+    buildCommand: "pip install --upgrade pip && pip install torch==2.6.0 torchvision==0.21.0 --extra-index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt"
+    startCommand: "python app/api_server.py"
+    plan: standard
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HOST
+        value: 0.0.0.0

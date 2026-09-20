@@ -117,6 +117,49 @@ export default function LULCTab({ site, meta }: { site: string; meta: SiteMeta }
             </div>
           )}
         </div>
+
+        {/* Official ISRO Bhuvan Ground-Truth Card */}
+        {meta.bhuvan_stats?.classes && (
+          <div className="mt-6 rounded-2xl border border-amber/30 bg-amber/5 p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-amber/20 pb-2.5">
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-amber">
+                <span>🇮🇳</span>
+                <span>Official ISRO Bhuvan 50k LULC</span>
+              </div>
+              <span className="rounded-full bg-amber/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber uppercase">
+                {meta.bhuvan_stats.state ? `State: ${meta.bhuvan_stats.state}` : "Govt API"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground font-mono">Government Survey Area:</span>
+              <span className="font-mono text-xs font-bold text-foreground">
+                {meta.bhuvan_stats.total_sqkm ?? 0} km² (~{(((meta.bhuvan_stats.total_sqkm ?? 0) * 100)).toFixed(0)} ha)
+              </span>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Official ground-truth figures from NRSC Bhuvan (<code className="text-foreground">curl_aoi.php</code>) for this watershed boundary:
+            </p>
+
+            <div className="space-y-1.5 pt-1">
+              {Object.entries(meta.bhuvan_stats.classes).map(([cname, cinfo]: [string, any]) => (
+                <div key={cname} className="flex items-center justify-between gap-2 text-xs font-mono">
+                  <span className="truncate text-foreground/80 font-sans">{cname}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-muted-foreground">{((cinfo?.sqkm ?? 0)).toFixed(2)} km²</span>
+                    <span className="font-semibold text-amber min-w-[3rem] text-right">{((cinfo?.pct ?? 0)).toFixed(1)}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-amber/20 pt-2 flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+              <span>Source: {meta.bhuvan_stats.source}</span>
+              <span className="text-sage font-semibold">✓ Verified Live</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

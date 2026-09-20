@@ -1,0 +1,169 @@
+name: Deploy Backend to GCP Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - abhay
+    paths:
+      - "project/**"
+      - ".github/workflows/deploy-backend-gcp.yml"
+  workflow_dispatch:
+    inputs:
+      gcp_region:
+        description: "GCP Region for Cloud Run & Artifact Registry"
+        required: false
+        default: "asia-south1"
+      service_name:
+        description: "Cloud Run Service Name"
+        required: false
+        default: "watershed-backend"
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ github.event.inputs.gcp_region || vars.GCP_REGION || 'asia-south1' }}
+  ARTIFACT_REPO: ${{ vars.GCP_ARTIFACT_REPO || 'watershed-repo' }}
+  SERVICE_NAME: ${{ github.event.inputs.service_name || vars.GCP_SERVICE_NAME || 'watershed-backend' }}
+  IMAGE_NAME: watershed-backend
+
+jobs:
+  validate:
+    name: Validate Python Syntax & Imports
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Syntax Check
+        run: |
+          python -m py_compile project/app/api_server.py
+          python -m py_compile project/src/*.py
+          echo "All Python backend files compiled successfully without syntax errors."
+
+  build-and-deploy:
+    name: Build, Push & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: validate
+    concurrency:
+      group: gcp-cloud-run-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Required GCP Secrets
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            MISSING_SECRETS="${MISSING_SECRETS} GCP_PROJECT_ID"
+          fi
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            MISSING_SECRETS="${MISSING_SECRETS} GCP_SA_KEY"
+          fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "::error::Missing required GitHub Secrets:${MISSING_SECRETS}"
+            echo ""
+            echo "To fix this error, add these secrets to your GitHub repository:"
+            echo "  1. Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "  2. Click 'New repository secret'"
+            echo "  3. Add 'GCP_PROJECT_ID' with your Google Cloud project ID"
+            echo "  4. Add 'GCP_SA_KEY' with your Service Account JSON key content"
+            echo "  See project/DEPLOYMENT_GCP.md for the step-by-step setup guide."
+            echo ""
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker Authentication
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Ensure Artifact Registry Repository Exists
+        run: |
+          if ! gcloud artifacts repositories describe ${{ env.ARTIFACT_REPO }} --location=${{ env.GCP_REGION }} >/dev/null 2>&1; then
+            echo "Creating Artifact Registry repository '${{ env.ARTIFACT_REPO }}' in ${{ env.GCP_REGION }}..."
+            gcloud artifacts repositories create ${{ env.ARTIFACT_REPO }} \
+              --repository-format=docker \
+              --location=${{ env.GCP_REGION }} \
+              --description="Watershed Signal Backend Container Images"
+          else
+            echo "Artifact Registry repository '${{ env.ARTIFACT_REPO }}' already exists."
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construct Image Tag
+        run: |
+          IMAGE_URI="${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./project
+          file: ./project/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_URI }}:${{ github.sha }}
+            ${{ env.IMAGE_URI }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Google Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: ${{ env.IMAGE_URI }}:${{ github.sha }}
+          region: ${{ env.GCP_REGION }}
+          flags: |
+            --port=8080
+            --memory=2Gi
+            --cpu=2
+            --timeout=300s
+            --concurrency=80
+            --min-instances=0
+            --max-instances=5
+            --allow-unauthenticated
+          env_vars: |
+            HOST=0.0.0.0
+            PORT=8080
+            BHUVAN_TOKEN_LULC=${{ secrets.BHUVAN_TOKEN_LULC }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+
+      - name: Verify Live Cloud Run Deployment
+        run: |
+          SERVICE_URL="${{ steps.deploy.outputs.url }}"
+          echo "=================================================="
+          echo "Cloud Run Service deployed successfully!"
+          echo "Service URL: $SERVICE_URL"
+          echo "Health Check: $SERVICE_URL/api/health"
+          echo "=================================================="
+
+          echo "Waiting 5 seconds for container startup..."
+          sleep 5
+
+          HEALTH_OUTPUT=$(curl -fsSL --retry 3 --retry-delay 5 "$SERVICE_URL/api/health" || echo "HEALTH_CHECK_FAILED")
+          echo "Health Response: $HEALTH_OUTPUT"
+
+          if [[ "$HEALTH_OUTPUT" == *"online"* ]]; then
+            echo "Deployment verified: Backend is online and responding."
+          else
+            echo "Warning: Healthcheck response did not contain 'online'. Check Cloud Run logs."
+          fi

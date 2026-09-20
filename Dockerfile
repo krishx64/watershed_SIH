@@ -22,8 +22,10 @@ RUN npm ci
 COPY web/ ./
 
 # Static export mode disables the /api rewrite (static exports don't support
-# rewrites); the Python server handles /api/* directly at runtime.
-RUN NEXT_STATIC_EXPORT=1 npm run build
+# rewrites); the Python server handles /api/* directly at runtime. Setting the
+# API base to "/" makes the client's API_BASE_URL resolve to a same-origin
+# relative path ("/api/...") inside the single container.
+RUN NEXT_STATIC_EXPORT=1 NEXT_PUBLIC_API_URL=/ npm run build
 
 # ---------- Stage 2: Python runtime ----------
 FROM python:3.12-slim
@@ -43,13 +45,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # matter). Installed first so it caches separately from the rest.
 #
 # The API image serves the Next.js export as its UI and never runs the
-# Streamlit dashboard, and aoi_picker/geo_photo import streamlit optionally, so
-# streamlit and its Streamlit-only extras are filtered out. Deriving from
-# requirements.txt keeps it the single source of truth (no second list to drift).
+# Streamlit dashboard or the Hugging Face Gradio/FastAPI bridge (project/app.py),
+# and aoi_picker/geo_photo import streamlit optionally, so those UI-only stacks
+# are filtered out. Deriving from requirements.txt keeps it the single source of
+# truth (no second list to drift).
 COPY project/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 \
         --extra-index-url https://download.pytorch.org/whl/cpu \
-    && grep -vE '^(streamlit|streamlit-folium)==' requirements.txt > requirements-api.txt \
+    && grep -vE '^(streamlit|streamlit-folium|gradio|fastapi|uvicorn)[=<>]' requirements.txt > requirements-api.txt \
     && pip install --no-cache-dir -r requirements-api.txt
 
 # Backend code + trained checkpoint, preserving project/src and project/app

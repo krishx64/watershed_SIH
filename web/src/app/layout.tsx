@@ -3,6 +3,7 @@ import { Instrument_Serif, Instrument_Sans, JetBrains_Mono } from "next/font/goo
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import { AuthProvider } from "@/lib/auth";
 
 const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument-serif",
@@ -33,9 +34,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${instrumentSerif.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <Navigation />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <AuthProvider>
+          <Navigation />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   );

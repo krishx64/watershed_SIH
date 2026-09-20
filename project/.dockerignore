@@ -1,8 +1,33 @@
+# Virtual environments & dependencies
 .venv/
-data/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Sensitive environment variables & secrets
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Heavy local datasets (do NOT bake 2.7GB into Docker image)
+bhoonidhi_data/
+data/raw/
+data/processed/
+data/labels/
+data/val/
 outputs/
 notebooks/
-__pycache__/
-*.pyc
+
+# Scratch & development files
+scratch/
+scratch_*
+*.tmp
+*.log
+
+# Git & IDEs
 .git/
-.streamlit/secrets.toml
+.gitignore
+.vscode/
+.idea/

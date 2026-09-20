@@ -221,6 +221,37 @@ export default function MapTab({ site, meta }: { site: string; meta: SiteMeta })
               ))}
             </div>
           </div>
+
+          {/* Official ISRO Bhuvan Spatial Geocoding Card */}
+          {meta.bhuvan_stats && (
+            <div className="rounded-2xl border border-amber/30 bg-amber/5 p-4 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-amber/20 pb-2">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-amber uppercase tracking-wider">
+                  <span>🇮🇳</span>
+                  <span>ISRO Bhuvan AOI Context</span>
+                </div>
+                <span className="rounded-full bg-amber/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber uppercase">
+                  {meta.bhuvan_stats.state ? `State: ${meta.bhuvan_stats.state}` : "National API"}
+                </span>
+              </div>
+              <div className="space-y-1 text-xs font-mono">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Official Survey Area:</span>
+                  <span className="font-bold text-foreground">{meta.bhuvan_stats.total_sqkm} km²</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Sensor Engine:</span>
+                  <span className="font-semibold text-foreground truncate max-w-[10rem]">
+                    {meta.primary_source?.includes("Bhoonidhi") ? "ISRO LISS-III" : "Sentinel-2 L2A"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>API Ground Truth:</span>
+                  <span className="text-sage font-semibold">1:50,000 WMS/REST</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

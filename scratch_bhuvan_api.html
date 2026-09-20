@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+   <meta property="og:title" content="ISRO's Geoportal | Gateway to Indian Earth Observation | Applications| Bhuvan API" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title> ISRO's Geoportal | Gateway to Indian Earth Observation | Applications |Bhuvan API</title>
+  <!-- plugins:css -->
+  <link rel="stylesheet" href="vendors/iconfonts/mdi/css/materialdesignicons.min.css">
+      <!--<link href="vendors/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">-->
+  <link rel="stylesheet" href="vendors/css/vendor.bundle.base.css">
+  <!-- endinject -->
+  <!-- inject:css -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet"  href='fonts/samarkan.css'>
+
+  <!-- endinject -->
+  <link rel="shortcut icon" href="images/favicon.png" />
+  
+  <SCRIPT LANGUAGE="javascript"> var bhuvanusername="empty"</script>  <style>
+table {
+    border-collapse: collapse;
+    width: 100%;
+    border: 1px solid black;
+}
+
+th, td {
+    text-align: left;
+    padding: 8px;
+    border: 1px solid black;
+}
+
+tr:nth-child(even){background-color: #f2f2f2}
+
+th {
+    background-color: #5C86F7;
+    color: white;
+}
+
+.logo_A0_Rectangle_74_Class {
+	fill: url(#logo_A0_Rectangle_75_pattern);
+}
+.logo_A0_Rectangle_74 {
+	position: absolute;
+	overflow: visible;
+	width: 96px;
+	height: 96px;
+	left: 0px;
+	top: -10px;
+}
+.logo_A0_Rectangle_83_Class {
+	fill: url(#logo_A0_Rectangle_84_pattern);
+}
+.logo_A0_Rectangle_83 {
+	position: absolute;
+	overflow: visible;
+	width: 61.132px;
+	height: 61.132px;
+	left: 0px;
+	top: 5px;
+}
+.Indian_Geo_Platform_of_ISRO_Class {
+	position: absolute;
+	left: 71.132px;
+	top: 45px;
+	overflow: visible;
+	width: 182px;
+	white-space: nowrap;
+	line-height: 20px;
+	margin-top: -3px;
+	text-align: left;
+	font-family: Roboto;
+	font-style: normal;
+	font-weight: normal;
+	font-size: 14px;
+	color: rgba(117,117,117,1);
+	letter-spacing: 0.18px;
+}
+.Component_23___1_Class {
+	position: absolute;
+	width: 233.132px;
+	height: 61.132px;
+	left: 0px;
+	top: 0px;
+	overflow: visible;
+}
+.Component_24___1_Class {
+	position: absolute;
+	width: 409.788px;
+	height: 51.582px;
+	left: 1424px;
+	top: 2px;
+	overflow: visible;
+}
+.Component_22___1_Class {
+	position: absolute;
+	width: 83px;
+	height: 30px;
+	left: 70.132px;
+	top: 21px;
+	overflow: visible;
+}
+.Bhuvan_A0_Text_67_Class {
+	position: absolute;
+	left: 10px;
+	top: 10px;
+	overflow: visible;
+	width: 82px;
+	white-space: nowrap;
+	line-height: 34px;
+	margin-top: -5px;
+	text-align: left;
+	font-family: Samarkan;
+	font-style: normal;
+	font-weight: normal;
+	font-size: 24px;
+	color: rgba(54,70,150,1);
+	letter-spacing: 0.18px;
+}
+  </style>
+  
+</head>
+<body>
+		
+  <div class="container-scroller">
+    <!-- partial:partials/_navbar.html -->
+    <nav class="navbar default-layout-navbar col-lg-12 col-12 p-0 fixed-top d-flex flex-row">
+      <div class="text-center navbar-brand-wrapper d-flex align-items-center justify-content-center">
+	  <div style="position:absolute;width:83px;height:30px;left:60.132px;top:9px;overflow:visible;" data-type="Symbol" data-name="Component 22 – 1" class="Component_22___1_Class">
+			<div data-type="Text" data-name="Bhuvan" class="Bhuvan_A0_Text_67_Class">
+				<span>Bhuvan</span>
+			</div>
+		</div>
+	  <div style="position:absolute;width:233.132px;height:61.132px;left:0px;top:0px;overflow:visible;" data-type="Symbol" data-name="Component 23 – 1" class="Component_23___1_Class">
+	<svg data-type="Rectangle" data-name="logo" class="logo_A0_Rectangle_83">
+		<pattern elementId="logo_A0_Rectangle_84" id="logo_A0_Rectangle_84_pattern" x="0" y="0" width="100%" height="100%">
+			<image x="0" y="0" width="100%" height="100%" href="logo_A0_Rectangle_84_pattern.png" xlink:href="logo_A0_Rectangle_84_pattern.png"></image>
+		</pattern>
+		<rect class="logo_A0_Rectangle_83_Class" rx="0" ry="0" x="0" y="0" width="96" height="96">
+		</rect>
+	</svg>
+			<div data-type="Text" data-name="Indian Geo-Platform of ISRO" class="Indian_Geo_Platform_of_ISRO_Class">
+				<span>Indian Geo-Platform of ISRO</span>
+			</div>
+		</div>
+		
+        <!--<a class="navbar-brand brand-logo" href="index.php"><img src="images/bhuvan_viewer3t3.png" style='width:auto;height:auto' alt="logo"/></a>-->
+        <a class="navbar-brand brand-logo-mini" href="index.php"></a>
+      </div>
+      <div class="navbar-menu-wrapper d-flex align-items-stretch">
+       <!-- <div class="search-field d-none d-md-block">
+          <form class="d-flex align-items-center h-100" action="#">
+            <div class="input-group">
+              <div class="input-group-prepend bg-transparent">
+                  <i class="input-group-text border-0 mdi mdi-magnify"></i>                
+              </div>
+              <input type="text" class="form-control bg-transparent border-0" placeholder="Search projects">
+            </div>
+          </form>
+        </div>-->
+        <ul class="navbar-nav navbar-nav-right">
+          <li class="nav-item nav-profile dropdown">
+            <a class="nav-link dropdown-toggle" id="profileDropdown" href="#" data-toggle="dropdown" aria-expanded="false">
+              <div class="nav-profile-img">
+               <i class="mdi mdi-account-circle" aria-hidden="true"></i>
+                <!--<span class="availability-status online"></span>             -->
+              </div>
+              <div class="nav-profile-text">
+                <!--<p class="mb-1 text-black">-->
+				<div id="loggedindiv">
+				<p class='mb-1 text-black'> Welcome User</p> 					  
+				</div> 
+					<!--  </p>-->
+              </div>
+            </a>
+            <div class="dropdown-menu navbar-dropdown" aria-labelledby="profileDropdown">
+              <div id='logindiv'>
+				 
+								<a href="#"  class='dropdown-item' title="Way to portal login" alt="login" Onclick="load_video('#LoginFrame','loading.php?q=login.php','Login','900','700');" ><i class="mdi mdi-login mr-2 text-primary"></i>Login</a> 
+														
+						</div>
+                <!--<i class="mdi mdi-cached mr-2 text-success"></i>
+                Login-->
+             
+              <!--<div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="#">
+                <i class="mdi mdi-logout mr-2 text-primary"></i>
+                Signout
+              </a>-->
+            </div>
+          </li>
+          <li class="nav-item d-none d-lg-block full-screen-link">
+            <a class="nav-link">
+              <i class="mdi mdi-fullscreen" id="fullscreen-button"></i>
+            </a>
+          </li>
+
+          <!--<li class="nav-item nav-logout d-none d-lg-block">
+            <a class="nav-link" href="#">
+              <i class="mdi mdi-power"></i>
+            </a>
+          </li>-->
+        
+        </ul>
+        <button class="navbar-toggler navbar-toggler-right d-lg-none align-self-center" type="button" data-toggle="offcanvas">
+          <span class="mdi mdi-menu"></span>
+        </button>
+      </div>
+    </nav>
+    <!-- partial -->
+    <div class="container-fluid page-body-wrapper">
+      <!-- partial:partials/_sidebar.html -->
+      <nav class="sidebar sidebar-offcanvas"  style='width:auto' id="sidebar">
+        <ul class="nav">
+          <li class="nav-item nav-profile">
+            <a href="#" class="nav-link">
+              <!--<div class="nav-profile-image">
+                <img src="images/faces/face1.jpg" alt="profile">
+                <span class="login-status online"></span>        
+              </div>-->
+              <div class="nav-profile-text d-flex flex-column">
+                <span class="font-weight-bold mb-2">Bhuvan API</span>
+                <!--<span class="text-secondary text-small">Project Manager</span>-->
+              </div>
+              <i class="mdi mdi-bookmark-check text-success nav-profile-badge"></i>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link"  href="#"  onclick="page1('home')">
+              <span class="menu-title">Home</span>
+              <i class="mdi mdi-home menu-icon"></i>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#ui-basic" aria-expanded="false" aria-controls="ui-basic">
+              <span class="menu-title">Proximity</span>
+              <i class="menu-arrow"></i>
+              <i class="mdi mdi-crosshairs-gps menu-icon"></i>
+            </a>
+            <div class="collapse" id="ui-basic">
+              <ul class="nav flex-column sub-menu">
+                <li class="nav-item" onclick="page1('posthp')"> <a   href="#" class="nav-link" >Postal and Hospital<br/> (Only AP)</a></li>
+                 <li class="nav-item" onclick="page1('vg')"> <a  href="#" class="nav-link" >Village Geocoding</a></li>
+                <li class="nav-item" onclick="page1('vrg')"> <a  href="#" class="nav-link" >Village Reverse Geocoding</a></li>
+              </ul>
+            </div>
+          </li>
+          <li class="nav-item">
+			  <a class="nav-link" data-toggle="collapse" href="#ui-basic1" aria-expanded="false" aria-controls="ui-basic1">
+				  <span class="menu-title">Thematic Statistics</span>
+				  <i class="menu-arrow"></i>
+				  <i class="mdi mdi-chart-bar menu-icon"></i>
+				</a>
+				<div class="collapse" id="ui-basic1">
+				  <ul class="nav flex-column sub-menu">
+					<li class="nav-item" onclick="page1('dist')"> <a  href="#" class="nav-link">LULC 50k Statistics</a></li>
+					 <li class="nav-item" onclick="page1('aoi')"> <a  href="#" class="nav-link">LULC 50k AOI Wise</a></li>
+					 <li class="nav-item" onclick="page1('point')"> <a  href="#" class="nav-link">LULC 250k Statistics</a></li>
+					 <li class="nav-item" onclick="page1('laoi')"> <a  href="#" class="nav-link">LULC 250k AOI Wise</a></li>
+					
+				  </ul>
+            </div>
+          </li>
+          <li class="nav-item">
+			  <a class="nav-link" data-toggle="collapse" href="#ui-basic2" aria-expanded="false" aria-controls="ui-basic2">
+				  <span class="menu-title">Routing</span>
+				  <i class="menu-arrow"></i>
+				  <i class="mdi mdi-compass menu-icon"></i>
+				</a>
+				<div class="collapse" id="ui-basic2">
+				  <ul class="nav flex-column sub-menu">
+					<li class="nav-item" onclick="page1('route')"> <a  href="#" class="nav-link">Shortest Path API  </a></li>
+				  </ul>
+            </div>
+          </li>
+		  <li class="nav-item">
+			  <a class="nav-link" data-toggle="collapse" href="#ui-basic3" aria-expanded="false" aria-controls="ui-basic3">
+				  <span class="menu-title">Geoid</span>
+				  <i class="menu-arrow"></i>
+				  <i class="mdi mdi-compass menu-icon"></i>
+				</a>
+				<div class="collapse" id="ui-basic3">
+				  <ul class="nav flex-column sub-menu">
+					<li class="nav-item" onclick="page1('geoid')"> <a  href="#" class="nav-link">Ellipsoid to Geoid Conversion API </a></li>
+				  </ul>
+            </div>
+          </li>
+		  <li class="nav-item">
+            <a class="nav-link"  href="#"  onclick="page1('api')">
+              <span class="menu-title">Access Token</span>
+              <i class="mdi  mdi-key menu-icon"></i>
+            </a>
+          </li>
+		  
+        </ul>
+      </nav>
+      <!-- partial -->
+	    
+      <div class="main-panel" id='sidehome'>
+        <div class="content-wrapper">
+         <!-- <div class="row">
+            <div class="col-12">
+              <span class="d-flex align-items-center purchase-popup">
+                <p>Like what you see? Check out our premium version for more.</p>
+                <a href="https://github.com/BootstrapDash/PurpleAdmin-Free-Admin-Template" target="_blank" class="btn ml-auto download-button">Download Free Version</a>
+                <a href="https://www.bootstrapdash.com/product/purple-bootstrap-4-admin-template/" target="_blank" class="btn purchase-button">Upgrade To Pro</a>
+                <i class="mdi mdi-close popup-dismiss"></i>
+              </span>
+            </div>
+          </div>-->
+          <div class="page-header">
+            <h3 class="page-title">
+              <span class="page-title-icon bg-gradient-primary text-white mr-2">
+                <i class="mdi mdi-home"></i>                 
+              </span>
+              Welcome To Bhuvan API
+            </h3>
+            <!--<nav aria-label="breadcrumb">
+              <ul class="breadcrumb">
+                <li class="breadcrumb-item active" aria-current="page">
+                  <span></span>Overview
+                  <i class="mdi mdi-alert-circle-outline icon-sm text-primary align-middle"></i>
+                </li>
+              </ul>
+            </nav>-->
+          </div>
+          <div class="row">
+            <div class=" stretch-card grid-margin">
+              <div class="card  card-img-holder text-black">
+                <div class="card-body">
+				<h3>Introduction</h3>
+Welcome to Bhuvan API. Now you can integrate different themes and resources available at us into your own applications. The following are different themes and APIs available.
+
+<br/>
+<br/>
+
+<table>
+<tr>
+<th style="background-color:#c479ff">Category</th>
+<th style="background-color:#c479ff">API</th>
+</tr>
+
+<tr><td rowspan=3>Proximity</td><td>Postal & Hospital Details</td></tr>
+<tr><td>Village Geocoding</td></tr>
+<tr><td>Village Reverse Geocoding</td></tr>
+
+
+<tr><td  rowspan=4>Thematic Statistics</td><td>LULC 50K Statistics</td></tr>
+<tr><td>LULC 50K AOI Wise Statistics</td></tr>
+<tr><td>LULC 250K Statistics</td></tr>
+<tr><td>LULC 250K AOI Wise Statistics</td></tr>
+
+<tr><td  rowspan=1>Routing</td><td>Shortest Path API</td></tr>
+<tr><td  rowspan=1>Geoid</td><td>Ellipsoid To Geoid Conversion API</td></tr>
+</table>
+
+
+
+                </div>
+              </div>
+            </div>
+           
+ 
+
+        </div>
+        <!-- content-wrapper ends -->
+        <!-- partial:partials/_footer.html -->
+        <footer class="footer">
+          <div class="d-sm-flex justify-content-center justify-content-sm-between">
+            <span class="text-muted text-center text-sm-left d-block d-sm-inline-block">Copyright © 2018 <a href="https://bhuvan.nrsc.gov.in/" target="_blank">Bhuvan</a>. All rights reserved.</span>
+            <!--<span class="float-none float-sm-right d-block mt-1 mt-sm-0 text-center">Hand-crafted & made with <i class="mdi mdi-heart text-danger"></i></span>-->
+          </div>
+        </footer>
+        <!-- partial -->
+      </div>
+      <!-- main-panel ends -->
+    </div>
+    <!-- page-body-wrapper ends -->
+  </div>
+  <!-- container-scroller -->
+
+  <!-- Modal-->
+  			<div class="modal fade show" id="exampleModal-4" tabindex="-1" role="dialog" aria-labelledby="ModalLabel" >
+                    <div class="modal-dialog" role="document">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel">Your Acess Token (expires in a day)</h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+                        <div class="modal-body" id='modal4'>
+                         
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-success btn11" data-clipboard-target="#modal4">Copy Key</button>
+                          <button type="button" class="btn btn-light" data-dismiss="modal">Close</button>
+                        </div>
+                      </div>
+                    </div>
+					
+                  </div>
+  
+  <!-- End of Modal -->
+  
+    <!-- Modal-->
+  			<div class="modal fade show" id="exampleModal-dist" tabindex="-1" role="dialog" aria-labelledby="ModalLabel" >
+                    <div class="modal-dialog" role="document">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel1">District Codes</h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+                        <div class="modal-body" id='modaldist'>
+                         
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-light" data-dismiss="modal">Close</button>
+                        </div>
+                      </div>
+                    </div>
+					
+                  </div>
+  
+  <!-- End of Modal -->
+  
+  <!--Modal-->
+  <div class="modal fade show" id="exampleModal-5" tabindex="-1" role="dialog" aria-labelledby="ModalLabel" >
+                    <div class="modal-dialog" role="document">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel">Alert</h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+                        <div class="modal-body" id='modal5'>
+                         
+                        </div>
+                        <div class="modal-footer">
+                         <button type="button" class="btn btn-light" data-dismiss="modal">Close</button>
+                        </div>
+                      </div>
+                    </div>
+					
+                  </div>
+  
+  <!--End of Modal -->
+  
+    <!--Modal-->
+	 <!-- <div class="modal fade show modal-lg" id="exampleModal-6" tabindex="-1" role="dialog" aria-labelledby="ModalLabel" >
+                    <div class="modal-dialog modal-lg" role="document">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel6"></h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+                        <div class="modal-body" id='modal6'><div class='video-wrapper'>
+							<iframe id='attachment'  width="100%" height="630" frameborder='0' allowfullscreen></iframe>
+                        </div></div>
+                        <div class="modal-footer">
+                         <button type="button" class="btn btn-light" data-dismiss="modal">Close</button>
+                        </div>
+                      </div>
+                    </div>
+					
+                  </div>-->
+	<div class="modal fade modal-lg" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content" style='height:100%'>
+	<div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel6"></h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+      <div class="modal-body">
+        <iframe id="LoginFrame" width="100%" height="620px"   frameborder="0" allowfullscreen></iframe> 
+      
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+	<div class="modal fade modal-lg" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content" style='height:100%'>
+	<div class="modal-header">
+                          <h5 class="modal-title" id="ModalLabel6"></h5>
+                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </div>
+      <div class="modal-body">
+      
+        <iframe id="LogoutFrame" width="100%" height="100px"   frameborder="0" allowfullscreen></iframe> 
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--	
+<div id='test' class='modal fade' role='dialog'>
+<div class='modal-dialog'>
+<div class='modal-content'><div class='modal-header'>
+<button type='button' class='close' data-dismiss='modal'>&times;</button>
+<h4 class='modal-title'>Modal Header "+id+"</h4></div>
+<div class='modal-body'><div class='video-wrapper'>
+    <iframe id='attachment' width='560' height='315' frameborder='0' allowfullscreen></iframe>
+</div></div>
+<div class='modal-footer'><button type='button' class='btn btn-default' data-dismiss='modal'>Close</button></div></div></div></div>-->
+  
+  <!--End of Modal -->
+  
+  <!--<div id="LogoutFrame" style="display: none;" ></div>-->
+  <!--<div id="LoginFrame" style="display: none;" ></div>-->
+
+
+  <!-- plugins:js -->
+  <script src="vendors/js/vendor.bundle.base.js"></script>
+  <script src="vendors/js/vendor.bundle.addons.js"></script>
+  <!-- endinject -->
+  <!-- Plugin js for this page-->
+  <!-- End plugin js for this page-->
+  <!-- inject:js -->
+  <script src="js/off-canvas.js"></script>
+  <script src="js/misc.js"></script>
+   <script src="js/clipboard.min.js"></script>
+  <!-- endinject -->
+  <!-- Custom js for this page-->
+  <script src="js/dashboard.js"></script>
+  <!-- End custom js for this page-->
+
+</body>
+
+</html>
+
+<script>
+var bhuvanusername1;
+function page1(a)
+{
+	if((a =='api' )&& ((bhuvanusername=='empty') || (bhuvanusername='')))
+	{
+		// alert ('You have to login to get the keys');
+		document.getElementById("modal5").innerHTML = "You have to login to get the keys";
+		 $('#exampleModal-5').modal('show');
+	}
+		else
+		{
+
+			var url='get/'+a+'.php';
+		 $.ajax({
+					type: "POST",
+					url: url,                 
+					cache: true,
+					success: function(response) {
+						document.getElementById("sidehome").innerHTML = response;
+							if(a=='aoi')
+			{
+				var data=[{"State":"KA","'l01'":0.74,"'l02'":1.63,"'l04'":203.17,"'l06'":22.63,"'l16'":10.08,"'l18'":0.23,"'l22'":1.78,"'l23'":1.77},{"State":"MH","'l02'":1.55,"'l04'":198.37,"'l06'":47.28,"'l16'":48.28,"'l18'":3.95,"'l22'":2.76,"'l23'":5.3},{"State":"AP","'l02'":1.81,"'l03'":0.2,"'l04'":123.64,"'l06'":70.58,"'l09'":26.98,"'l11'":0,"'l16'":37.23,"'l18'":2.3,"'l22'":3.65,"'l23'":11.74}];
+				document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+			}
+			if(a=='vrg')
+			{
+				var data = 
+		[{"name1":"SEKURU ","vid":"2817004002130200 ","no_hh":"2747","tot_p":"10207","tot_m":"5163","tot_f":"5044","p_sc":"2491","m_sc":"1277","f_sc":"1214","p_st":"217","m_st":"100","f_st":"117","m_lit":"3247","f_lit":"2620","dhq_name":"GUNTUR ","thq_name":"CHEBROLU "}];
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			if(a=='route')
+			{
+				var data = 
+		[{ "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": {}, "geometry": {"type":"MultiLineString","coordinates":[[[76.7428085606277,30.738069315264],[76.742801,30.73803],[76.7427864547431,30.737854601314]],[[76.7427864547431,30.737854601314],[76.742784,30.737825],[76.742799,30.737602]],[[76.742799,30.737602],[76.7429241061044,30.737410491425]],[[76.7429290000001,30.737403],[76.743049,30.73736],[76.7431060000001,30.7373220000001],[76.743678,30.7366020000001],[76.7437884321122,30.7364693533044]],[[76.7437884321122,30.7364693533044],[76.744195,30.735981],[76.7446090000001,30.7354340000001]],[[76.7446090000001,30.7354340000001],[76.7448670000001,30.735123]],[[76.7448670000001,30.735123],[76.7463440000001,30.736049]],[[76.7466880000001,30.735602],[76.7463440000001,30.736049]],[[76.7470960000001,30.735174],[76.7466880000001,30.735602]],[[76.7470960000001,30.735174],[76.7476120000001,30.7355240000001]],[[76.748382,30.735257],[76.748186,30.7352260000001],[76.7480420000001,30.73524],[76.74791,30.735286],[76.747798,30.735354],[76.7476120000001,30.7355240000001]],[[76.748382,30.735257],[76.74857,30.735374]],[[76.7490970000001,30.7357220000001],[76.74857,30.735374]],[[76.749221,30.735799],[76.7490970000001,30.7357220000001]],[[76.7495390000001,30.736009],[76.749221,30.735799]],[[76.749648,30.7360790000001],[76.7495390000001,30.736009]],[[76.7506910000001,30.7367580000001],[76.749648,30.7360790000001]],[[76.7512560000001,30.737132],[76.7506910000001,30.7367580000001]],[[76.75199,30.736166],[76.7512560000001,30.737132]],[[76.752305,30.735803],[76.75199,30.736166]],[[76.752305,30.735803],[76.752465,30.7357850000001],[76.7526886898657,30.7357535625054]],[[76.7526886898657,30.7357535625054],[76.7528350000001,30.735733],[76.7529970000001,30.735708]],[[76.7530022221328,30.7357112627952],[76.7536260000001,30.7361010000001],[76.7536977966601,30.7361462053046]],[[76.7537305520629,30.7361668290767],[76.7546790000001,30.7367640000001],[76.7575630000001,30.7386020000001],[76.7579240000001,30.738886]],[[76.7579240000001,30.738886],[76.75791,30.739],[76.7579700000001,30.739135]],[[76.7579700000001,30.739135],[76.7580540000001,30.739202],[76.758157,30.739245]],[[76.758157,30.739245],[76.7583100000001,30.7392600000001],[76.7583980000001,30.7392330000001]],[[76.7583980000001,30.7392330000001],[76.7585040000001,30.739152],[76.758543,30.7390990000001]],[[76.758543,30.7390990000001],[76.758584,30.7389860000001],[76.758583,30.7389150000001],[76.758559,30.738843]],[[76.758559,30.738843],[76.758628,30.738617],[76.7590910000001,30.737936],[76.7594120000001,30.7375430000001]],[[76.7594120000001,30.7375430000001],[76.7598140000001,30.7370110000001],[76.7601890000001,30.7365310000001],[76.76061,30.7359950000001],[76.761152,30.73533],[76.7615730000001,30.734792],[76.762304,30.733885],[76.762639,30.7334720000001]],[[76.762639,30.7334720000001],[76.762731,30.73344],[76.7628589879282,30.7334204764178]],[[76.7628589879282,30.7334204764178],[76.763203,30.733368],[76.7632862974118,30.7333616535306]],[[76.7632862974118,30.7333616535306],[76.7633080000001,30.7333600000001],[76.763428,30.733371]],[[76.763428,30.733371],[76.763587,30.7333990000001]],[[76.7636157892276,30.7334170230372],[76.7676970000001,30.7359720000001]],[[76.7677025961321,30.7359755717092],[76.768518,30.736496]],[[76.768827,30.736119],[76.7685750000001,30.7364240000001]],[[76.7692040000001,30.7357040000001],[76.768827,30.736119]],[[76.7697450000001,30.7351090000001],[76.7692040000001,30.7357040000001]],[[76.7704360000001,30.7345040000001],[76.7697450000001,30.7351090000001]],[[76.7710870000001,30.7339940000001],[76.7704360000001,30.7345040000001]],[[76.7716610000001,30.7336340000001],[76.771308,30.733908],[76.7710870000001,30.7339940000001]],[[76.772162,30.732804],[76.7716610000001,30.7336340000001]],[[76.772162,30.732804],[76.772317,30.7329080000001],[76.7724220000001,30.732965]],[[76.7730070000001,30.732264],[76.7724220000001,30.732965]],[[76.7730070000001,30.732264],[76.773265,30.7324140000001]],[[76.773265,30.7324140000001],[76.773893,30.7327960000001]],[[76.773893,30.7327960000001],[76.7741490000001,30.7329350000001],[76.7745550000001,30.732918]],[[76.7745550000001,30.732918],[76.7751610000001,30.7329]],[[76.7751610000001,30.7329],[76.7752850000001,30.732921]],[[76.7753720000001,30.732916],[76.775627,30.732939]],[[76.775627,30.732939],[76.7759490000001,30.7330420000001],[76.7764030000001,30.7332910000001],[76.776912,30.733618]],[[76.776912,30.733618],[76.777273,30.733165]],[[76.777273,30.733165],[76.7778530000001,30.7335220000001]],[[76.778085,30.7332510000001],[76.7778530000001,30.7335220000001]],[[76.778085,30.7332510000001],[76.7785720000001,30.733554]],[[76.7785720000001,30.733554],[76.778896,30.7332190000001]],[[76.778717,30.7331090000001],[76.778896,30.7332190000001]],[[76.778717,30.7331090000001],[76.7789050000001,30.7329720000001]],[[76.7789050000001,30.7329720000001],[76.779097,30.733099]],[[76.779097,30.733099],[76.7792700000001,30.7332490000001],[76.7793536671534,30.7333373153285]],[[76.7793600000001,30.733344],[76.7793540000001,30.7334430000001],[76.7793930000001,30.73353],[76.7794170000001,30.7335810000001]],[[76.7794170000001,30.7335810000001],[76.7794930000001,30.7336270000001],[76.7795840000001,30.7336770000001]],[[76.7795840000001,30.7336770000001],[76.779656,30.7336750000001],[76.7797540000001,30.733666],[76.779863,30.733637]],[[76.779863,30.733637],[76.7799400000001,30.733569],[76.779994,30.7334890000001]],[[76.779994,30.7334890000001],[76.7800050000001,30.7334010000001],[76.7799790000001,30.733283]],[[76.7799937864916,30.7332456446529],[76.7800360000001,30.7331390000001],[76.7801370000001,30.73296],[76.7801700000001,30.732923]],[[76.7801700000001,30.732923],[76.7802211613937,30.7328644635265]],[[76.7802211613937,30.7328644635265],[76.7811620000001,30.7317880000001],[76.7815320000001,30.7313780000001],[76.78211,30.7307210000001],[76.7822270250281,30.7305867654091]],[[76.7822800000001,30.7305260000001],[76.7826240000001,30.730154],[76.7835150000001,30.7291440000001],[76.7844590000001,30.728125],[76.784660449797,30.7279288984278]],[[76.7846850000001,30.7279050000001],[76.7848020000001,30.7279270000001],[76.784884,30.727922],[76.7849870000001,30.7278870000001]],[[76.7849870000001,30.7278870000001],[76.7851149288684,30.7279064674365]],[[76.785171,30.7279150000001],[76.7856162371745,30.7281916884283]],[[76.7856162371745,30.7281916884283],[76.7857680000001,30.728286],[76.786459,30.7287150000001],[76.787829,30.7295800000001],[76.788075,30.7297300000001],[76.788351,30.7298970000001],[76.78907,30.7302950000001],[76.7894230000001,30.7304970000001],[76.7896930000001,30.7306550000001],[76.7898230000001,30.7307450000001]],[[76.7898230000001,30.7307450000001],[76.7902080000001,30.73101]],[[76.7902080000001,30.73101],[76.7902874750901,30.7310602530514]],[[76.7904797560975,30.7309628048781],[76.7904540000001,30.7309710000001],[76.79033,30.7309930000001]],[[76.7907050000001,30.7308570000001],[76.790627,30.7309090000001],[76.7905420000001,30.730943],[76.7904797560975,30.7309628048781]],[[76.79078,30.7307640000001],[76.7907050000001,30.7308570000001]],[[76.7915860000001,30.7297760000001],[76.7909690000001,30.730532],[76.79078,30.7307640000001]],[[76.7918790000001,30.72943],[76.79166,30.7296850000001],[76.7915860000001,30.7297760000001]],[[76.7918790000001,30.72943],[76.791884,30.729433],[76.7918900000001,30.7294360000001],[76.7918970000001,30.7294380000001],[76.791903,30.7294400000001],[76.791909,30.7294410000001],[76.7919160000001,30.7294430000001],[76.7919220000001,30.7294440000001],[76.791929,30.7294440000001],[76.7919360000001,30.7294440000001],[76.7919430000001,30.7294440000001],[76.791949,30.7294440000001],[76.7919560000001,30.7294430000001],[76.7919620000001,30.7294420000001],[76.7919690000001,30.7294410000001],[76.791975,30.7294390000001],[76.7919820000001,30.7294370000001],[76.7919880000001,30.729434],[76.791993,30.729432],[76.791999,30.729429],[76.7920040000001,30.729426],[76.7920100000001,30.7294220000001]],[[76.7920100000001,30.7294220000001],[76.7920140000001,30.7294180000001],[76.792019,30.7294140000001],[76.792023,30.72941],[76.7920270000001,30.729406],[76.7920310000001,30.7294010000001],[76.7920340000001,30.7293960000001],[76.7920370000001,30.7293910000001],[76.792039,30.729386],[76.792041,30.729381],[76.792043,30.7293760000001],[76.792044,30.7293700000001],[76.792045,30.729365],[76.792045,30.729359],[76.792045,30.7293540000001],[76.792045,30.7293480000001],[76.792044,30.729343],[76.792043,30.729337],[76.792041,30.7293320000001],[76.792039,30.7293270000001],[76.7920370000001,30.729322],[76.7920340000001,30.729317],[76.7920310000001,30.7293120000001],[76.7920270000001,30.7293070000001],[76.792023,30.7293030000001],[76.792019,30.729299],[76.7920140000001,30.729295]],[[76.793481,30.72785],[76.7928830000001,30.7284260000001],[76.7924740000001,30.728821],[76.792218,30.729066],[76.7920140000001,30.729295]],[[76.793481,30.72785],[76.7946210000001,30.728464]],[[76.7946210000001,30.728464],[76.794948,30.72864],[76.7952020000001,30.728777],[76.7954520000001,30.728912],[76.795509,30.7289420000001]],[[76.795509,30.7289420000001],[76.7956530000001,30.72902]],[[76.7956530000001,30.72902],[76.7958420000001,30.729137],[76.796383,30.7294910000001]]]} }, { "type": "Feature", "properties": {}, "geometry": {"type":"Point","coordinates":[76.7427994141065,30.7380108759901]} }, { "type": "Feature", "properties": {}, "geometry": {"type":"Point","coordinates":[76.7966170151705,30.7292116300978]} } ] }];
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			if(a=='vg')
+			{
+				var data = 
+		[{"name1":"SEKURU ","vid":"2817004002130200 ","no_hh":"2747","tot_p":"10207","tot_m":"5163","tot_f":"5044","p_sc":"2491","m_sc":"1277","f_sc":"1214","p_st":"217","m_st":"100","f_st":"117","m_lit":"3247","f_lit":"2620","dhq_name":"GUNTUR ","thq_name":"CHEBROLU "}];
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+			}
+			if(a=='posthp')
+			{
+				var data = 
+		[{"lat":"80.615876","lon":"16.281731","facilityname":"SRI DURGA MEDICAL AND GENERAL STORES","facilityaddress":"Door no. 3-69 main road kopallegudivada tenali mandal guntur district","facilityid":"61676","facilitycategory":"Retail Sale","ownername":"B V DURGA PRASAD","inchargemedicalofficer":"K SATYANARAYANA","technicianname":null,"supervisorname":null,"facilitylic":"615\/AP\/GN (T)\/2003\/R\/G","facilityvalidity":"18112018","rpno":"10063\/D","timing":"Others:- 7AM - 10PM","emailid":"","nabhaccre":null,"validitydatenabh":null,"bloodbank":"","bloodstorage":"","inhousepharmacy":"","datauploadedby":null,"scheme":"1","remarks":"","district":null,"dcode":null,"stcode":null,"dname":"GUNTUR","divison":"Tenali","sub_divison":"TENALI","facilityphone":"9553503025","categories":"1","code":null,"hpphone":""},{"lat":"80.6146309","lon":"16.2822239","facilityname":"SRI SIVA NAGA MEDICALS","facilityaddress":"DOOR NO. 2-53 MAIN ROAD NEAR GANDHI STATUE GUDIVADA TENALI MANDAL GUNTUR DISTRICT","facilityid":"61675","facilitycategory":"Retail Sale","ownername":"P KRISHNA MURTHY","inchargemedicalofficer":"EDARA MANJULA","technicianname":null,"supervisorname":null,"facilitylic":"600\/AP\/GN (T)\/2003\/R\/G","facilityvalidity":"24062018","rpno":"013980\/A2","timing":"Others:- 7AM - 10PM","emailid":"","nabhaccre":null,"validitydatenabh":null,"bloodbank":"","bloodstorage":"","inhousepharmacy":"","datauploadedby":null,"scheme":"1","remarks":"","district":null,"dcode":null,"stcode":null,"dname":"GUNTUR","divison":"Tenali","sub_divison":"TENALI","facilityphone":"9550212653","categories":"1","code":null,"hpphone":""}];
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			if(a=='dist')
+			{
+				var data = {"0":"Khammam","name":"Khammam","1":"16029.00","totalarea":"16029.00","2":"92.41944159 ","l01":"92.41944159 ","3":"219.8162516 ","l02":"219.8162516 ","4":"46.76806223 ","l03":"46.76806223 ","5":"4340.444688 ","l04":"4340.444688 ","6":"370.8753167 ","l05":"370.8753167 ","7":"2261.496586 ","l06":"2261.496586 ","8":"0 ","l07":"0 ","9":"9.60766053 ","l08":"9.60766053 ","10":"7260.83438 ","l09":"7260.83438 ","11":"227.8636698 ","l10":"227.8636698 ","12":"99.92719588 ","l11":"99.92719588 ","13":"0 ","l12":"0 ","14":"3.633160683 ","l13":"3.633160683 ","15":"0 ","l14":"0 ","16":"42.81907054 ","l15":"42.81907054 ","17":"177.2739006 ","l16":"177.2739006 ","18":"0 ","l17":"0 ","19":"36.08465745 ","l18":"36.08465745 ","20":"0 ","l19":"0 ","21":"0 ","l20":"0 ","22":"0 ","l21":"0 ","23":"526.6214545 ","l22":"526.6214545 ","24":"312.5145051 ","l23":"312.5145051 ","25":"0 ","l24":"0 "};
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			
+			if(a=='point')
+			{
+				var data = [{"Year":"2004_05","Description":"Rann "},{"Year":"2005_06","Description":"Kharif Crop "},{"Year":"2006_07","Description":"Kharif Crop "},{"Year":"2007_08","Description":"Double\/Triple Crop "},{"Year":"2008_09","Description":"Rabi Crop "},{"Year":"2009_10","Description":"Double\/Triple Crop "},{"Year":"2010_11","Description":"Double\/Triple Crop "},{"Year":"2011_12","Description":"Kharif Crop "},{"Year":"2012_13","Description":"Current Fallow "},{"Year":"2013_14","Description":"Double\/Triple Crop "},{"Year":"2014_15","Description":"Double\/Triple Crop "},{"Year":"2015_16","Description":"Wasteland "},{"Year":"2016_17","Description":"Rabi Crop "},{"Year":"2017_18","Description":"Wasteland "},{"Year":"2018_19","Description":"Kharif Crop "}];
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			if(a=='laoi')
+			{
+				var data = [{"Year":"2004_05","LULC Description":"Rabi Crop ","Area in Sq. Km":"10.77"},{"Year":"2004_05","LULC Description":"Waterbodies max ","Area in Sq. Km":"0.14"},{"Year":"2004_05","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"25.40"},{"Year":"2004_05","LULC Description":"Wasteland ","Area in Sq. Km":"1.71"},{"Year":"2004_05","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"3.47"},{"Year":"2004_05","LULC Description":"Rann ","Area in Sq. Km":"0.02"},{"Year":"2004_05","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.31"},{"Year":"2004_05","LULC Description":"Kharif Crop ","Area in Sq. Km":"37.47"},{"Year":"2004_05","LULC Description":"Current Fallow ","Area in Sq. Km":"4.60"},{"Year":"2004_05","LULC Description":"Shifting Cultivation ","Area in Sq. Km":"0.15"},{"Year":"2005_06","LULC Description":"Rabi Crop ","Area in Sq. Km":"1.47"},{"Year":"2005_06","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2005_06","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2005_06","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"4.86"},{"Year":"2005_06","LULC Description":"Wasteland ","Area in Sq. Km":"3.92"},{"Year":"2005_06","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2005_06","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2005_06","LULC Description":"Built-up ","Area in Sq. Km":"1.43"},{"Year":"2005_06","LULC Description":"Kharif Crop ","Area in Sq. Km":"6.68"},{"Year":"2005_06","LULC Description":"Current Fallow ","Area in Sq. Km":"8.22"},{"Year":"2006_07","LULC Description":"Rabi Crop ","Area in Sq. Km":"3.44"},{"Year":"2006_07","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2006_07","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2006_07","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"4.52"},{"Year":"2006_07","LULC Description":"Wasteland ","Area in Sq. Km":"4.00"},{"Year":"2006_07","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2006_07","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2006_07","LULC Description":"Built-up ","Area in Sq. Km":"1.37"},{"Year":"2006_07","LULC Description":"Kharif Crop ","Area in Sq. Km":"4.13"},{"Year":"2006_07","LULC Description":"Current Fallow ","Area in Sq. Km":"9.12"},{"Year":"2007_08","LULC Description":"Rabi Crop ","Area in Sq. Km":"1.18"},{"Year":"2007_08","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2007_08","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2007_08","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"6.29"},{"Year":"2007_08","LULC Description":"Wasteland ","Area in Sq. Km":"3.94"},{"Year":"2007_08","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2007_08","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2007_08","LULC Description":"Built-up ","Area in Sq. Km":"1.43"},{"Year":"2007_08","LULC Description":"Kharif Crop ","Area in Sq. Km":"6.89"},{"Year":"2007_08","LULC Description":"Current Fallow ","Area in Sq. Km":"6.85"},{"Year":"2008_09","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.19"},{"Year":"2008_09","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2008_09","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2008_09","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"4.90"},{"Year":"2008_09","LULC Description":"Wasteland ","Area in Sq. Km":"3.73"},{"Year":"2008_09","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2008_09","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2008_09","LULC Description":"Built-up ","Area in Sq. Km":"1.56"},{"Year":"2008_09","LULC Description":"Kharif Crop ","Area in Sq. Km":"13.10"},{"Year":"2008_09","LULC Description":"Current Fallow ","Area in Sq. Km":"3.10"},{"Year":"2009_10","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.34"},{"Year":"2009_10","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2009_10","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2009_10","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"7.16"},{"Year":"2009_10","LULC Description":"Wasteland ","Area in Sq. Km":"3.68"},{"Year":"2009_10","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2009_10","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2009_10","LULC Description":"Built-up ","Area in Sq. Km":"1.66"},{"Year":"2009_10","LULC Description":"Kharif Crop ","Area in Sq. Km":"9.12"},{"Year":"2009_10","LULC Description":"Current Fallow ","Area in Sq. Km":"4.63"},{"Year":"2010_11","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.33"},{"Year":"2010_11","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2010_11","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2010_11","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"6.18"},{"Year":"2010_11","LULC Description":"Wasteland ","Area in Sq. Km":"3.68"},{"Year":"2010_11","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2010_11","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2010_11","LULC Description":"Built-up ","Area in Sq. Km":"1.66"},{"Year":"2010_11","LULC Description":"Kharif Crop ","Area in Sq. Km":"9.68"},{"Year":"2010_11","LULC Description":"Current Fallow ","Area in Sq. Km":"5.07"},{"Year":"2011_12","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.11"},{"Year":"2011_12","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2011_12","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2011_12","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"5.80"},{"Year":"2011_12","LULC Description":"Wasteland ","Area in Sq. Km":"3.83"},{"Year":"2011_12","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2011_12","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2011_12","LULC Description":"Built-up ","Area in Sq. Km":"1.65"},{"Year":"2011_12","LULC Description":"Kharif Crop ","Area in Sq. Km":"10.50"},{"Year":"2011_12","LULC Description":"Current Fallow ","Area in Sq. Km":"4.68"},{"Year":"2012_13","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.91"},{"Year":"2012_13","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2012_13","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.73"},{"Year":"2012_13","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"5.67"},{"Year":"2012_13","LULC Description":"Wasteland ","Area in Sq. Km":"3.83"},{"Year":"2012_13","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2012_13","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2012_13","LULC Description":"Waterbodies min ","Area in Sq. Km":"0.03"},{"Year":"2012_13","LULC Description":"Built-up ","Area in Sq. Km":"1.66"},{"Year":"2012_13","LULC Description":"Kharif Crop ","Area in Sq. Km":"5.20"},{"Year":"2012_13","LULC Description":"Current Fallow ","Area in Sq. Km":"9.31"},{"Year":"2013_14","LULC Description":"Rabi Crop ","Area in Sq. Km":"1.19"},{"Year":"2013_14","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2013_14","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.76"},{"Year":"2013_14","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"3.48"},{"Year":"2013_14","LULC Description":"Wasteland ","Area in Sq. Km":"3.83"},{"Year":"2013_14","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2013_14","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2013_14","LULC Description":"Built-up ","Area in Sq. Km":"1.66"},{"Year":"2013_14","LULC Description":"Kharif Crop ","Area in Sq. Km":"5.44"},{"Year":"2013_14","LULC Description":"Current Fallow ","Area in Sq. Km":"10.99"},{"Year":"2014_15","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.23"},{"Year":"2014_15","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2014_15","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.04"},{"Year":"2014_15","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"7.11"},{"Year":"2014_15","LULC Description":"Wasteland ","Area in Sq. Km":"3.82"},{"Year":"2014_15","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.26"},{"Year":"2014_15","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2014_15","LULC Description":"Waterbodies min ","Area in Sq. Km":"0.73"},{"Year":"2014_15","LULC Description":"Zaid Crop ","Area in Sq. Km":"0.87"},{"Year":"2014_15","LULC Description":"Built-up ","Area in Sq. Km":"1.66"},{"Year":"2014_15","LULC Description":"Kharif Crop ","Area in Sq. Km":"8.00"},{"Year":"2014_15","LULC Description":"Current Fallow ","Area in Sq. Km":"4.90"},{"Year":"2015_16","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.43"},{"Year":"2015_16","LULC Description":"Plantation ","Area in Sq. Km":"39.58"},{"Year":"2015_16","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.27"},{"Year":"2015_16","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"10.70"},{"Year":"2015_16","LULC Description":"Wasteland ","Area in Sq. Km":"3.82"},{"Year":"2015_16","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.33"},{"Year":"2015_16","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2015_16","LULC Description":"Waterbodies min ","Area in Sq. Km":"0.33"},{"Year":"2015_16","LULC Description":"Zaid Crop ","Area in Sq. Km":"0.00"},{"Year":"2015_16","LULC Description":"Built-up ","Area in Sq. Km":"1.56"},{"Year":"2015_16","LULC Description":"Kharif Crop ","Area in Sq. Km":"4.83"},{"Year":"2015_16","LULC Description":"Current Fallow ","Area in Sq. Km":"5.43"},{"Year":"2016_17","LULC Description":"Rabi Crop ","Area in Sq. Km":"1.08"},{"Year":"2016_17","LULC Description":"Plantation ","Area in Sq. Km":"39.84"},{"Year":"2016_17","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.66"},{"Year":"2016_17","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"3.37"},{"Year":"2016_17","LULC Description":"Wasteland ","Area in Sq. Km":"3.59"},{"Year":"2016_17","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.34"},{"Year":"2016_17","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.09"},{"Year":"2016_17","LULC Description":"Zaid Crop ","Area in Sq. Km":"0.06"},{"Year":"2016_17","LULC Description":"Built-up ","Area in Sq. Km":"1.63"},{"Year":"2016_17","LULC Description":"Kharif Crop ","Area in Sq. Km":"2.43"},{"Year":"2016_17","LULC Description":"Current Fallow ","Area in Sq. Km":"14.26"},{"Year":"2017_18","LULC Description":"Rabi Crop ","Area in Sq. Km":"1.31"},{"Year":"2017_18","LULC Description":"Plantation ","Area in Sq. Km":"39.56"},{"Year":"2017_18","LULC Description":"Waterbodies max ","Area in Sq. Km":"1.96"},{"Year":"2017_18","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"5.43"},{"Year":"2017_18","LULC Description":"Wasteland ","Area in Sq. Km":"3.83"},{"Year":"2017_18","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.34"},{"Year":"2017_18","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.10"},{"Year":"2017_18","LULC Description":"Waterbodies min ","Area in Sq. Km":"0.65"},{"Year":"2017_18","LULC Description":"Zaid Crop ","Area in Sq. Km":"0.22"},{"Year":"2017_18","LULC Description":"Built-up ","Area in Sq. Km":"1.56"},{"Year":"2017_18","LULC Description":"Kharif Crop ","Area in Sq. Km":"5.38"},{"Year":"2017_18","LULC Description":"Current Fallow ","Area in Sq. Km":"9.04"},{"Year":"2018_19","LULC Description":"Rabi Crop ","Area in Sq. Km":"0.81"},{"Year":"2018_19","LULC Description":"Plantation ","Area in Sq. Km":"46.15"},{"Year":"2018_19","LULC Description":"Waterbodies max ","Area in Sq. Km":"2.82"},{"Year":"2018_19","LULC Description":"Double\/Triple Crop ","Area in Sq. Km":"11.01"},{"Year":"2018_19","LULC Description":"Wasteland ","Area in Sq. Km":"4.11"},{"Year":"2018_19","LULC Description":"Degraded\/Scrub Forest ","Area in Sq. Km":"1.39"},{"Year":"2018_19","LULC Description":"Deciduous Forest ","Area in Sq. Km":"0.11"},{"Year":"2018_19","LULC Description":"Waterbodies min ","Area in Sq. Km":"0.34"},{"Year":"2018_19","LULC Description":"Built-up ","Area in Sq. Km":"1.90"},{"Year":"2018_19","LULC Description":"Kharif Crop ","Area in Sq. Km":"6.49"},{"Year":"2018_19","LULC Description":"Current Fallow ","Area in Sq. Km":"6.36"}];
+
+		document.getElementById("json").innerHTML = JSON.stringify(data, undefined, 2);
+				
+			}
+			
+					}
+				});
+	}
+}
+function api()
+{
+
+	var h=$('#exampleFormControlSelect2').val();
+	$('#loadingImage').show();
+	  var posting = $.post( 'oauth/key.php', {theme:h } );
+
+  posting.done(function( data ) {
+	  var json = $.parseJSON(data);
+
+	  $('#loadingImage').hide();
+	 // document.getElementById("modal4").innerHTML = "<div id='textcopy'>"+JSON.stringify(json[0])+"</div>";
+	 document.getElementById("modal4").innerHTML = "<div id='textcopy'>"+JSON.stringify(json[0]).replace(/\"/g, "")+"</div>";
+document.getElementById("modal4").value = JSON.stringify(json[0]);
+	  $('#exampleModal-4').modal('show');
+
+  });
+
+	
+}
+
+
+function load_video(name,video,tit,w,h) {
+	
+	document.getElementById("ModalLabel6").innerHTML =tit;
+    // var id = $(this).attr('iframe');
+    $(name).attr('src', video);
+	if(name=='#LogoutFrame')
+	{
+	var html_string= "You are successfully logged out";
+	document.getElementById('LoginFrame').src = "data:text/html;charset=utf-8," + escape(html_string);
+	}
+	        if(name=='#LogoutFrame')
+		  {
+		  }else
+		  {
+    $('#myModal').modal('show');
+	$('.modal-content').css('height',$( window ).height()*0.8);
+		  }
+}
+	window.reloadlogin_afterlogout=function () {
+		bhuvanusername = "empty";
+		document.getElementById("loggedindiv").innerHTML = "<p class='mb-1 text-black'> Welcome User</p>"; 
+		document.getElementById("logindiv").innerHTML = '<b><a href="#"  class="dropdown-item" title="Way to portal login" alt="login" Onclick="load_video(\'#LoginFrame\',\'loading.php?q=login.php\',\'Login\',\'900\',\'700\');" ><i class="mdi mdi-login mr-2 text-primary"></i>Login</a></b>';
+		$('#myModal').modal('hide');
+	}
+	window.reloadlogin=function () {
+		window.bhuvanusername1=bhuvanusername;
+		document.getElementById("loggedindiv").innerHTML = "<p class='mb-1 text-black'> Welcome " + bhuvanusername+"</p>" ;
+		document.getElementById("logindiv").innerHTML = '<b><a href="#" class="dropdown-item" title="Click here to logout" alt="logout" Onclick="load_video(\'#LogoutFrame\',\'loading.php?q=logout.php\',\'Logout\',\'700\',\'700\');window.reloadlogin_afterlogout();modalhide();" > <i class="mdi mdi-logout mr-2 text-primary"></i>Logout</a></b>';
+		$('#myModal').modal('hide');
+		}
+function kill_session() {
+    if (window.XMLHttpRequest)
+        {// code for IE7+, Firefox, Chrome, Opera, Safari
+        xmlhttp=new XMLHttpRequest();
+    }
+    else
+        {// code for IE6, IE5
+            xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+        }
+
+    xmlhttp.open("GET","php/loading.php?q=php/logout.php",false);
+    xmlhttp.send();
+
+     document.getElementById("session").innerHTML=xmlhttp.responseText; 
+	setTimeout(function(){location.reload();},2000);
+	
+}
+
+function modalhide()
+{
+	
+	page1('home');
+}
+
+    var clipboard = new ClipboardJS('.btn11');
+
+
+
+</script>
+<script>
+function getdistcode(){
+		
+	$.get("get/getdistcode.php", function (data) {
+		document.getElementById('modaldist').innerHTML= "<div id='textcopy'>"+data+"</div>";
+	});
+	document.getElementById('ModalLabel1').innerHTML= "District Codes";
+		
+	$("#exampleModal-dist").modal('show');
+}
+
+function getstatcode(){
+		
+	$.get("get/getstatcode.php", function (data) {
+		document.getElementById('modaldist').innerHTML= "<div id='textcopy'>"+data+"</div>";
+	});
+	document.getElementById('ModalLabel1').innerHTML= "State Codes";
+	$("#exampleModal-dist").modal('show');
+}
+
+function getlucode(){
+		
+	$.get("get/getlucode.php", function (data) {
+		document.getElementById('modaldist').innerHTML= "<div id='textcopy'>"+data+"</div>";
+	});
+	
+	document.getElementById('ModalLabel1').innerHTML= "LULC Codes";	
+	$("#exampleModal-dist").modal('show');
+}
+</script>

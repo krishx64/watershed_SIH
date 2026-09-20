@@ -200,11 +200,10 @@ def _reverse_geocode(lat: float, lon: float) -> dict:
     return {"state": "Maharashtra", "district": "Jalna", "block": "Jalna"}
 
 
-def get_watershed_context(bbox: tuple, target_profile: dict, cache_dir=None) -> dict:
-    """Top-level entry point for aoi_picker.py. Returns a dict with
-    watershed_mask/drainage_mask on target_profile's exact grid (ready for
-    tier1_fallback.run_tier1(watershed_mask=...)), the pour point in lat/lon,
-    watershed metadata, administrative jurisdiction, and area in hectares."""
+def delineate_watershed_raw(bbox: tuple, cache_dir=None) -> dict:
+    """Fetch DEM, reproject to UTM, compute flow directions, catchment, drainage,
+    and reverse geocode. Does NOT require target_profile (pure terrain calculation),
+    allowing it to run in parallel with satellite imagery fetching."""
     from rasterio.warp import transform as warp_transform
     from config import DATA_RAW
 
@@ -222,17 +221,33 @@ def get_watershed_context(bbox: tuple, target_profile: dict, cache_dir=None) -> 
         elevation_utm, utm_profile, aoi_bbox_utm
     )
 
+    (pour_lon,), (pour_lat,) = warp_transform(utm_profile["crs"], "EPSG:4326", [pour_xy[0]], [pour_xy[1]])
+    admin_info = _reverse_geocode(pour_lat, pour_lon)
+
+    return {
+        "catchment_mask": catchment_mask,
+        "drainage_mask": drainage_mask,
+        "utm_profile": utm_profile,
+        "pour_point": (pour_lat, pour_lon),
+        "admin": admin_info,
+    }
+
+
+def align_watershed_to_target(raw_ctx: dict, target_profile: dict) -> dict:
+    """Reprojects raw boolean catchment and drainage masks to target_profile's exact grid."""
+    catchment_mask = raw_ctx["catchment_mask"]
+    drainage_mask = raw_ctx["drainage_mask"]
+    utm_profile = raw_ctx["utm_profile"]
+    pour_lat, pour_lon = raw_ctx["pour_point"]
+    admin_info = raw_ctx["admin"]
+
     watershed_mask = catchment_to_model1_grid(catchment_mask, utm_profile, target_profile)
     drainage_on_target = catchment_to_model1_grid(drainage_mask, utm_profile, target_profile)
-
-    (pour_lon,), (pour_lat,) = warp_transform(utm_profile["crs"], "EPSG:4326", [pour_xy[0]], [pour_xy[1]])
 
     pixel_width = abs(target_profile["transform"].a)
     pixel_height = abs(target_profile["transform"].e)
     pixel_area_m2 = pixel_width * pixel_height if (pixel_width > 0 and pixel_height > 0) else 100.0
     area_ha = round(float(watershed_mask.sum()) * pixel_area_m2 / 10_000.0, 1)
-
-    admin_info = _reverse_geocode(pour_lat, pour_lon)
 
     return {
         "watershed_mask": watershed_mask,
@@ -248,6 +263,12 @@ def get_watershed_context(bbox: tuple, target_profile: dict, cache_dir=None) -> 
             "verified official watershed outlet."
         ),
     }
+
+
+def get_watershed_context(bbox: tuple, target_profile: dict, cache_dir=None) -> dict:
+    """Top-level entry point for backwards compatibility."""
+    raw = delineate_watershed_raw(bbox, cache_dir=cache_dir)
+    return align_watershed_to_target(raw, target_profile)
 
 
 if __name__ == "__main__":
